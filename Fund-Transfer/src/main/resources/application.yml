@@ -8,7 +8,7 @@ spring:
     ok: 200
 
   datasource:
-    url: jdbc:mysql://localhost:3306/fund_transfer_service
+    url: jdbc:mysql://localhost:3307/fund_transfer_service
     username: root
     password: root
 

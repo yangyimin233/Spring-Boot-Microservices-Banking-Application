@@ -6,7 +6,7 @@ spring:
     ok: 200
 
   datasource:
-    url: jdbc:mysql://localhost:3306/transaction_service
+    url: jdbc:mysql://localhost:3307/transaction_service
     username: root
     password: root
 

@@ -10,9 +10,9 @@ spring:
     not_found: 404
 
   datasource:
-    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${MYSQL_DB_NAME:user_service}
-    username: ${MYSQL_USER:root}
-    password: ${MYSQL_PASSWORD:root}
+    url: jdbc:mysql://localhost:3307/user_service?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+    username: root
+    password: root
   jpa:
     hibernate:
       ddl-auto: update
@@ -25,8 +25,8 @@ spring:
 app:
   config:
     keycloak:
-      server-url: http://localhost:8571
-      realm: banking-service
-      client-id: banking-service-api-client
-      client-secret: 932OFITe8vtH4z0G9gem4Afd69JhbwrI
+      server-url: http://localhost:8180     # 【修改 2】改为 Docker 映射的 8180 端口
+      realm: banking-realm                  # 【修改 3】改为我们创建的 Realm 名称
+      client-id: banking-client             # 【修改 4】改为我们刚才创建的 Client ID
+      client-secret: KBgH665Gr0CFEd32afg9G39pXUuDdIg5
 
