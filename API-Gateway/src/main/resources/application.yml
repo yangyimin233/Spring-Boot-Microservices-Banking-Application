@@ -31,6 +31,9 @@ spring:
           uri: lb://account-service
           predicates:
             - Path=/accounts/**
+          filters:
+            # 👇 加上这一行！它的作用是：提取当前 Session 的 JWT，塞入 Authorization: Bearer 头
+            - TokenRelay=
         - id: sequence-generator
           uri: lb://sequence-generator
           predicates:

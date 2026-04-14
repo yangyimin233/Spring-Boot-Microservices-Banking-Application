@@ -5,6 +5,12 @@ spring:
     conflict: 409
     ok: 200
     not_found: 404
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # 这是零信任架构的核心：配置 Keycloak 的公钥拉取地址
+          jwk-set-uri: http://localhost:8180/realms/banking-realm/protocol/openid-connect/certs
 
   datasource:
     url: jdbc:mysql://localhost:3307/account_service?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
