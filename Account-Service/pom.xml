@@ -70,6 +70,14 @@
             <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
         </dependency>
 
+
+<!--        分布式事务 -->
+        <dependency>
+            <groupId>com.alibaba.cloud</groupId>
+            <artifactId>spring-cloud-starter-alibaba-seata</artifactId>
+            <version>2021.0.5.0</version>
+        </dependency>
+
     </dependencies>
     <dependencyManagement>
         <dependencies>

@@ -1,5 +1,6 @@
 package org.training.fundtransfer.service.implementation;
 
+import io.seata.spring.annotation.GlobalTransactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -52,6 +53,7 @@ public class FundTransferServiceImpl implements FundTransferService {
      * @throws InsufficientBalance If the required amount to transfer is not available.
      */
     @Override
+    @GlobalTransactional(name = "fund-transfer-global-tx", rollbackFor = Exception.class)
     public FundTransferResponse fundTransfer(FundTransferRequest fundTransferRequest) {
 
         Account fromAccount;
@@ -101,8 +103,15 @@ public class FundTransferServiceImpl implements FundTransferService {
      */
     private String internalTransfer(Account fromAccount, Account toAccount, BigDecimal amount) {
 
+
+
+        // 调用accountservice服务更新 两个账户余额
         fromAccount.setAvailableBalance(fromAccount.getAvailableBalance().subtract(amount));
         accountService.updateAccount(fromAccount.getAccountNumber(), fromAccount);
+
+
+//        int a = 1/0;
+
 
         toAccount.setAvailableBalance(toAccount.getAvailableBalance().add(amount));
         accountService.updateAccount(toAccount.getAccountNumber(), toAccount);
