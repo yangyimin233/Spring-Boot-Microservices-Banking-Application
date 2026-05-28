@@ -14,4 +14,6 @@ public interface UserRepository extends JpaRepository<User, Long> {
      * @return         an optional containing the user if found, otherwise empty
      */
     Optional<User> findUserByAuthId(String authId);
+
+    Optional<User> findUserByEmailId(String emailId);
 }

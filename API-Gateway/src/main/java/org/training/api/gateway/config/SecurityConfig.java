@@ -12,18 +12,13 @@ public class SecurityConfig {
 
     @Bean
     public SecurityWebFilterChain securityWebFilterChain(ServerHttpSecurity http) {
+        // Security auth is handled by JwtGatewayFilter (GlobalFilter),
+        // Spring Security here only disables CSRF and permits all.
         http
                 .authorizeExchange()
-                //ALLOWING REGISTER API FOR DIRECT ACCESS
-                .pathMatchers("/api/users/register").permitAll()
-                //ALL OTHER APIS ARE AUTHENTICATED
-                .anyExchange().authenticated()
+                .anyExchange().permitAll()
                 .and()
-                .csrf().disable()
-                .oauth2Login()
-                .and()
-                .oauth2ResourceServer()
-                .jwt();
+                .csrf().disable();
         return http.build();
     }
 }

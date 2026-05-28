@@ -49,6 +49,10 @@ public class FeignClientErrorDecoder implements ErrorDecoder {
         Reader reader = null;
 
         try {
+            if (response.body() == null) {
+                log.error("Response body is null, status: {}", response.status());
+                return new GlobalException("Unknown error", String.valueOf(response.status()));
+            }
             reader = response.body().asReader(StandardCharsets.UTF_8);
             String result = IOUtils.toString(reader);
             log.error(result);

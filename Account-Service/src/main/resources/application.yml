@@ -5,13 +5,6 @@ spring:
     conflict: 409
     ok: 200
     not_found: 404
-  security:
-    oauth2:
-      resourceserver:
-        jwt:
-          # 这是零信任架构的核心：配置 Keycloak 的公钥拉取地址
-          jwk-set-uri: http://localhost:8180/realms/banking-realm/protocol/openid-connect/certs
-
   datasource:
     url: jdbc:mysql://localhost:3307/account_service?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
     username: root
@@ -28,16 +21,7 @@ spring:
 
 
 seata:
-  enabled: true
-  application-id: ${spring.application.name} # 告诉 TC 我是谁
-  tx-service-group: my_test_tx_group # 事务分组名
-  # 👇 绝杀2：你心心念念的强一致性 XA 模式！
-  data-source-proxy-mode: XA
-  service:
-    vgroup-mapping:
-      my_test_tx_group: default # 映射到 TC 集群
-    grouplist:
-      default: 127.0.0.1:8091 # 你的 Seata Server 地址
+  enabled: false
 
 
 

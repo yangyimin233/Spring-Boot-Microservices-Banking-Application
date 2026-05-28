@@ -3,9 +3,8 @@ server:
 
 app:
   config:
-    keycloak:
-      url: http://localhost:8180/     # 【修改 1】改成我们 Docker 映射的 8180 端口
-      realm: banking-realm            # 【修改 2】改成我们创建的 Realm 名字
+    jwt:
+      secret: "c2VjdXJlLXNlY3JldC1rZXktZm9yLWp3dC1zaWduaW5nLWJhbmtpbmctYXBwLW1pY3Jvc2VydmljZXM="
 
 eureka:
   client:
@@ -23,17 +22,14 @@ spring:
           uri: lb://user-service
           predicates:
             - Path=/api/users/**
-        - id: fund-transfer-service
-          uri: lb://fund-transfer-service
+        - id: user-auth
+          uri: lb://user-service
           predicates:
-            - Path=/api/fund-transfers/**
+            - Path=/api/auth/**
         - id: account-service
           uri: lb://account-service
           predicates:
             - Path=/accounts/**
-          filters:
-            # 👇 加上这一行！它的作用是：提取当前 Session 的 JWT，塞入 Authorization: Bearer 头
-            - TokenRelay=
         - id: sequence-generator
           uri: lb://sequence-generator
           predicates:
@@ -47,50 +43,11 @@ spring:
           predicates:
             - Path=/fund-transfers/**
 
-#  security:
-#    oauth2:
-#      client:
-#        provider:
-#          keycloak:
-#            token-uri: ${app.config.keycloak.url}/realms/${app.config.keycloak.realm}/protocol/openid-connect/token
-#            authorization-uri: ${app.config.keycloak.url}/realms/${app.config.keycloak.realm}/protocol/openid-connect/auth
-#            user-name-attribute: preferred_username
-#            user-info-uri: ${app.config.keycloak.url}/realms/${app.config.keycloak.realm}/protocol/openid-connect/userinfo
-#            jwk-set-uri: ${app.config.keycloak.url}/realms/${app.config.keycloak.realm}/protocol/openid-connect/certs
-#            user-info-authentication-method: header
-#        registration:
-#          banking-service-client:
-#            provider: keycloak
-#            client-id: banking-service-client
-#            client-secret: Au6eAD2JgB5MH0G2tNrPLfKqObswfSPb
-#            authorization-grant-type: authorization_code
-#            redirect-uri: http://localhost:8571/login/oauth2/code/keycloak
-#            scope: openid
-#      resourceserver:
-#        jwt:
-#          jwk-set-uri: ${app.config.keycloak.url}/realms/${app.config.keycloak.realm}/protocol/openid-connect/certs
-
-  security:
-    oauth2:
-      client:
-        provider:
-          keycloak:
-            # ... (这里的 url 引用了上面的变量，所以保持原样，不用动) ...
-            token-uri: ${app.config.keycloak.url}/realms/${app.config.keycloak.realm}/protocol/openid-connect/token
-            authorization-uri: ${app.config.keycloak.url}/realms/${app.config.keycloak.realm}/protocol/openid-connect/auth
-            user-name-attribute: preferred_username
-            user-info-uri: ${app.config.keycloak.url}/realms/${app.config.keycloak.realm}/protocol/openid-connect/userinfo
-            jwk-set-uri: ${app.config.keycloak.url}/realms/${app.config.keycloak.realm}/protocol/openid-connect/certs
-            user-info-authentication-method: header
-        registration:
-          banking-service-client:
-            provider: keycloak
-            client-id: banking-client # 【修改 3】改成我们刚才创建的 Client ID
-            client-secret: KBgH665Gr0CFEd32afg9G39pXUuDdIg5
-            authorization-grant-type: authorization_code
-            # 【修改 5 - 修复原作者 Bug】把 8571 改回网关真实的端口 8080
-            redirect-uri: http://localhost:8080/login/oauth2/code/keycloak
-            scope: openid
-      resourceserver:
-        jwt:
-          jwk-set-uri: ${app.config.keycloak.url}/realms/${app.config.keycloak.realm}/protocol/openid-connect/certs
+    sentinel:
+      transport:
+        dashboard: localhost:8089
+      scg:
+        fallback:
+          mode: response
+          response-status: 429
+          response-body: "{\"code\":429,\"message\":\"Too many requests. Please try again later.\"}"

@@ -3,7 +3,6 @@ package org.training.fundtransfer.service.implementation;
 import io.seata.spring.annotation.GlobalTransactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.training.fundtransfer.exception.AccountUpdateException;
@@ -38,47 +37,45 @@ public class FundTransferServiceImpl implements FundTransferService {
     private final FundTransferRepository fundTransferRepository;
     private final TransactionService transactionService;
 
-    @Value("${spring.application.ok}")
-    private String ok;
-
     private final FundTransferMapper fundTransferMapper = new FundTransferMapper();
 
     /**
-     * Transfers funds from one account to another.
+     * Transfers funds from one account to another with compensating transaction support.
      *
-     * @param fundTransferRequest The request object containing the details of the fund transfer.
-     * @return The response object indicating the status of the fund transfer.
-     * @throws ResourceNotFound If the requested account is not found on the server.
-     * @throws AccountUpdateException If the account status is pending or inactive.
-     * @throws InsufficientBalance If the required amount to transfer is not available.
+     * If any step fails after the from-account has been debited,
+     * a compensating action reverses the debit to prevent money loss.
      */
     @Override
     @GlobalTransactional(name = "fund-transfer-global-tx", rollbackFor = Exception.class)
     public FundTransferResponse fundTransfer(FundTransferRequest fundTransferRequest) {
 
-        Account fromAccount;
+        // Load and validate fromAccount
         ResponseEntity<Account> response = accountService.readByAccountNumber(fundTransferRequest.getFromAccount());
-        if(Objects.isNull(response.getBody())){
-            log.error("requested account "+fundTransferRequest.getFromAccount()+" is not found on the server");
+        if (Objects.isNull(response.getBody())) {
+            log.error("requested account {} is not found on the server", fundTransferRequest.getFromAccount());
             throw new ResourceNotFound("requested account not found on the server", GlobalErrorCode.NOT_FOUND);
         }
-        fromAccount = response.getBody();
-        if (!fromAccount.getAccountStatus().equals("ACTIVE")) {
-            log.error("account status is pending or inactive, please update the account status");
-            throw new AccountUpdateException("account is status is :pending", GlobalErrorCode.NOT_ACCEPTABLE);
+        Account fromAccount = response.getBody();
+
+        if (!"ACTIVE".equals(fromAccount.getAccountStatus())) {
+            log.error("account status is pending or inactive");
+            throw new AccountUpdateException("account status is not active", GlobalErrorCode.NOT_ACCEPTABLE);
         }
         if (fromAccount.getAvailableBalance().compareTo(fundTransferRequest.getAmount()) < 0) {
             log.error("required amount to transfer is not available");
             throw new InsufficientBalance("requested amount is not available", GlobalErrorCode.NOT_ACCEPTABLE);
         }
-        Account toAccount;
+
+        // Load and validate toAccount
         response = accountService.readByAccountNumber(fundTransferRequest.getToAccount());
-        if(Objects.isNull(response.getBody())) {
-            log.error("requested account "+fundTransferRequest.getToAccount()+" is not found on the server");
+        if (Objects.isNull(response.getBody())) {
+            log.error("requested account {} is not found on the server", fundTransferRequest.getToAccount());
             throw new ResourceNotFound("requested account not found on the server", GlobalErrorCode.NOT_FOUND);
         }
-        toAccount = response.getBody();
+        Account toAccount = response.getBody();
+
         String transactionId = internalTransfer(fromAccount, toAccount, fundTransferRequest.getAmount());
+
         FundTransfer fundTransfer = FundTransfer.builder()
                 .transferType(TransferType.INTERNAL)
                 .amount(fundTransferRequest.getAmount())
@@ -94,70 +91,93 @@ public class FundTransferServiceImpl implements FundTransferService {
     }
 
     /**
-     * Transfers funds from one account to another within the system.
+     * Transfers funds with compensating transaction pattern (Saga).
+     * Step 1: Debit fromAccount via balance endpoint
+     * Step 2: Credit toAccount via balance endpoint
+     * Step 3: Record both transaction entries
      *
-     * @param fromAccount The account to transfer funds from.
-     * @param toAccount The account to transfer funds to.
-     * @param amount The amount of funds to transfer.
-     * @return The transaction reference number.
+     * If step 2 or 3 fails after step 1 succeeded, the debit is REVERSED.
      */
     private String internalTransfer(Account fromAccount, Account toAccount, BigDecimal amount) {
+        BigDecimal originalFromBalance = fromAccount.getAvailableBalance();
+        BigDecimal originalToBalance = toAccount.getAvailableBalance();
+        boolean fromDebited = false;
+        boolean toCredited = false;
 
+        try {
+            // Step 1: Debit fromAccount
+            BigDecimal newFromBalance = fromAccount.getAvailableBalance().subtract(amount);
+            accountService.updateBalance(fromAccount.getAccountNumber(), java.util.Map.of("balance", newFromBalance));
+            fromDebited = true;
+            log.info("Debited {} from account {}", amount, fromAccount.getAccountNumber());
 
+            // Step 2: Credit toAccount
+            BigDecimal newToBalance = toAccount.getAvailableBalance().add(amount);
+            accountService.updateBalance(toAccount.getAccountNumber(), java.util.Map.of("balance", newToBalance));
+            toCredited = true;
+            log.info("Credited {} to account {}", amount, toAccount.getAccountNumber());
 
-        // 调用accountservice服务更新 两个账户余额
-        fromAccount.setAvailableBalance(fromAccount.getAvailableBalance().subtract(amount));
-        accountService.updateAccount(fromAccount.getAccountNumber(), fromAccount);
+            // Step 3: Record transactions
+            String transactionReference = UUID.randomUUID().toString();
+            List<Transaction> transactions = List.of(
+                    Transaction.builder()
+                            .accountId(fromAccount.getAccountNumber())
+                            .transactionType("INTERNAL_TRANSFER")
+                            .amount(amount.negate())
+                            .description("Internal fund transfer from " + fromAccount.getAccountNumber()
+                                    + " to " + toAccount.getAccountNumber())
+                            .build(),
+                    Transaction.builder()
+                            .accountId(toAccount.getAccountNumber())
+                            .transactionType("INTERNAL_TRANSFER")
+                            .amount(amount)
+                            .description("Internal fund transfer received from: " + fromAccount.getAccountNumber())
+                            .build());
 
+            transactionService.makeInternalTransactions(transactions, transactionReference);
+            return transactionReference;
 
-//        int a = 1/0;
+        } catch (Exception e) {
+            log.error("Fund transfer failed at step (debited={}, credited={}): {}", fromDebited, toCredited, e.getMessage());
 
+            // Compensating action: if fromAccount was debited but toAccount wasn't credited, reverse the debit
+            if (fromDebited && !toCredited) {
+                try {
+                    log.warn("COMPENSATION: Reversing debit of {} from account {}", amount, fromAccount.getAccountNumber());
+                    accountService.updateBalance(fromAccount.getAccountNumber(), java.util.Map.of("balance", originalFromBalance));
+                    log.info("COMPENSATION SUCCESS: Debit reversed for account {}", fromAccount.getAccountNumber());
+                } catch (Exception compEx) {
+                    log.error("CRITICAL: Compensation failed for account {}. Manual intervention required! " +
+                                    "Original balance: {}, Amount: {}",
+                            fromAccount.getAccountNumber(), originalFromBalance, amount, compEx);
+                }
+            }
 
-        toAccount.setAvailableBalance(toAccount.getAvailableBalance().add(amount));
-        accountService.updateAccount(toAccount.getAccountNumber(), toAccount);
+            // If toAccount was credited but transaction recording failed, reverse the credit too
+            if (toCredited) {
+                try {
+                    log.warn("COMPENSATION: Reversing credit of {} from account {}", amount, toAccount.getAccountNumber());
+                    accountService.updateBalance(toAccount.getAccountNumber(), java.util.Map.of("balance", originalToBalance));
+                    log.info("COMPENSATION SUCCESS: Credit reversed for account {}", toAccount.getAccountNumber());
+                } catch (Exception compEx) {
+                    log.error("CRITICAL: Credit compensation failed for account {}. Manual intervention required!",
+                            toAccount.getAccountNumber(), compEx);
+                }
+            }
 
-        List<Transaction> transactions = List.of(
-                Transaction.builder()
-                        .accountId(fromAccount.getAccountNumber())
-                        .transactionType("INTERNAL_TRANSFER")
-                        .amount(amount.negate())
-                        .description("Internal fund transfer from "+fromAccount.getAccountNumber()+" to "+toAccount.getAccountNumber())
-                        .build(),
-                Transaction.builder()
-                        .accountId(toAccount.getAccountNumber())
-                        .transactionType("INTERNAL_TRANSFER")
-                        .amount(amount)
-                        .description("Internal fund transfer received from: "+fromAccount.getAccountNumber()).build());
-
-        String transactionReference = UUID.randomUUID().toString();
-        transactionService.makeInternalTransactions(transactions, transactionReference);
-        return transactionReference;
+            throw new RuntimeException("Fund transfer failed and was compensated", e);
+        }
     }
 
-    /**
-     * Retrieves the details of a fund transfer based on the given reference ID.
-     *
-     * @param referenceId The reference ID of the fund transfer.
-     * @return The FundTransferDto containing the details of the fund transfer.
-     * @throws ResourceNotFound if the fund transfer is not found.
-     */
     @Override
     public FundTransferDto getTransferDetailsFromReferenceId(String referenceId) {
-
         return fundTransferRepository.findFundTransferByTransactionReference(referenceId)
                 .map(fundTransferMapper::convertToDto)
                 .orElseThrow(() -> new ResourceNotFound("Fund transfer not found", GlobalErrorCode.NOT_FOUND));
     }
 
-    /**
-     * Retrieves a list of fund transfers associated with the given account ID.
-     *
-     * @param accountId The ID of the account
-     * @return A list of fund transfer DTOs
-     */
     @Override
     public List<FundTransferDto> getAllTransfersByAccountId(String accountId) {
-
         return fundTransferMapper.convertToDtoList(fundTransferRepository.findFundTransferByFromAccount(accountId));
     }
 }

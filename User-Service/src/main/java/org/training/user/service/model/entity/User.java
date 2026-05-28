@@ -23,6 +23,8 @@ public class User {
 
     private String emailId;
 
+    private String password;
+
     private String contactNo;
 
     private String authId;

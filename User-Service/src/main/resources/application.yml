@@ -24,9 +24,7 @@ spring:
 
 app:
   config:
-    keycloak:
-      server-url: http://localhost:8180     # 【修改 2】改为 Docker 映射的 8180 端口
-      realm: banking-realm                  # 【修改 3】改为我们创建的 Realm 名称
-      client-id: banking-client             # 【修改 4】改为我们刚才创建的 Client ID
-      client-secret: KBgH665Gr0CFEd32afg9G39pXUuDdIg5
+    jwt:
+      secret: "c2VjdXJlLXNlY3JldC1rZXktZm9yLWp3dC1zaWduaW5nLWJhbmtpbmctYXBwLW1pY3Jvc2VydmljZXM="
+      expiration: 86400000
 

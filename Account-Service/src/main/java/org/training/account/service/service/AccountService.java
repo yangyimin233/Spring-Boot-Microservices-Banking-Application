@@ -44,6 +44,11 @@ public interface AccountService {
     Response updateAccount(String accountNumber, AccountDto accountDto);
 
     /**
+     * Updates the balance of the account with the specified account number (internal use).
+     */
+    Response updateBalance(String accountNumber, java.math.BigDecimal newBalance);
+
+    /**
      * Retrieves the balance of the account with the specified account number.
      *
      * @param accountNumber The account number for which to retrieve the balance.
