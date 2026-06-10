@@ -89,6 +89,12 @@
             <version>2021.0.5.0</version>
         </dependency>
 
+        <!--        AOP 切面支持 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-aop</artifactId>
+        </dependency>
+
         <!--        Sentinel 服务层流量控制 + 壁舱隔离 -->
         <dependency>
             <groupId>com.alibaba.cloud</groupId>

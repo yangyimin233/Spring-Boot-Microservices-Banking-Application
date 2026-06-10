@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.training.fundtransfer.annotation.ServiceSwitch;
 import org.training.fundtransfer.exception.AccountUpdateException;
 import org.training.fundtransfer.exception.GlobalErrorCode;
 import org.training.fundtransfer.exception.InsufficientBalance;
@@ -47,6 +48,7 @@ public class FundTransferServiceImpl implements FundTransferService {
      */
     @Override
     @GlobalTransactional(name = "fund-transfer-global-tx", rollbackFor = Exception.class)
+    @ServiceSwitch("service.switch.fundTransfer")
     public FundTransferResponse fundTransfer(FundTransferRequest fundTransferRequest) {
 
         // Load and validate fromAccount (Feign → account-service, Sentinel 自动保护)
