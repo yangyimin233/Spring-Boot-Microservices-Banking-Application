@@ -49,7 +49,7 @@ public class FundTransferServiceImpl implements FundTransferService {
     @GlobalTransactional(name = "fund-transfer-global-tx", rollbackFor = Exception.class)
     public FundTransferResponse fundTransfer(FundTransferRequest fundTransferRequest) {
 
-        // Load and validate fromAccount
+        // Load and validate fromAccount (Feign → account-service, Sentinel 自动保护)
         ResponseEntity<Account> response = accountService.readByAccountNumber(fundTransferRequest.getFromAccount());
         if (Objects.isNull(response.getBody())) {
             log.error("requested account {} is not found on the server", fundTransferRequest.getFromAccount());
@@ -66,7 +66,7 @@ public class FundTransferServiceImpl implements FundTransferService {
             throw new InsufficientBalance("requested amount is not available", GlobalErrorCode.NOT_ACCEPTABLE);
         }
 
-        // Load and validate toAccount
+        // Load and validate toAccount (Feign → account-service, Sentinel 自动保护)
         response = accountService.readByAccountNumber(fundTransferRequest.getToAccount());
         if (Objects.isNull(response.getBody())) {
             log.error("requested account {} is not found on the server", fundTransferRequest.getToAccount());

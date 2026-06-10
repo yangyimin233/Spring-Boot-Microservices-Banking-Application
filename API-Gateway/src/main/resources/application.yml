@@ -6,16 +6,19 @@ app:
     jwt:
       secret: "c2VjdXJlLXNlY3JldC1rZXktZm9yLWp3dC1zaWduaW5nLWJhbmtpbmctYXBwLW1pY3Jvc2VydmljZXM="
 
-eureka:
-  client:
-    service-url:
-      defaultZone: http://localhost:8761/eureka
-
 spring:
+  config:
+    import: optional:nacos:${spring.application.name}.yml
   application:
     name: api-gateway
 
   cloud:
+    nacos:
+      discovery:
+        server-addr: localhost:8848
+      config:
+        server-addr: localhost:8848
+        file-extension: yaml
     gateway:
       routes:
         - id: user-service
@@ -44,6 +47,7 @@ spring:
             - Path=/fund-transfers/**
 
     sentinel:
+      eager: true
       transport:
         dashboard: localhost:8089
       scg:

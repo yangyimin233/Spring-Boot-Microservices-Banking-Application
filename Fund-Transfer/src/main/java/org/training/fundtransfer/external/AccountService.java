@@ -10,7 +10,8 @@ import org.training.fundtransfer.model.dto.response.Response;
 import java.math.BigDecimal;
 import java.util.Map;
 
-@FeignClient(name = "account-service", configuration = FeignClientConfiguration.class)
+@FeignClient(name = "account-service", configuration = FeignClientConfiguration.class,
+        fallback = org.training.fundtransfer.external.fallback.AccountServiceFallback.class)
 public interface AccountService {
 
     @GetMapping("/accounts/internal")

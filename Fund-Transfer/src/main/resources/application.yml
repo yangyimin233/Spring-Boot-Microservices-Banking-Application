@@ -2,10 +2,27 @@ server:
   port: 8085
 
 spring:
+  devtools:
+    restart:
+      enabled: false
+  config:
+    import: optional:nacos:${spring.application.name}.yml
   application:
     name: fund-transfer-service
     bad_request: 400
     ok: 200
+
+  cloud:
+    nacos:
+      discovery:
+        server-addr: localhost:8848
+      config:
+        server-addr: localhost:8848
+        file-extension: yaml
+    sentinel:
+      eager: true
+      transport:
+        dashboard: localhost:8089
 
   datasource:
     url: jdbc:mysql://localhost:3307/fund_transfer_service
@@ -21,6 +38,10 @@ spring:
     properties:
       hibernate:
         format_sql: true
+
+feign:
+  sentinel:
+    enabled: true
 
 seata:
   enabled: true

@@ -2,12 +2,22 @@ server:
   port: 8082
 
 spring:
+  config:
+    import: optional:nacos:${spring.application.name}.yml
   application:
     name: user-service
     bad_request: 400
     conflict: 409
     success: 200
     not_found: 404
+
+  cloud:
+    nacos:
+      discovery:
+        server-addr: localhost:8848
+      config:
+        server-addr: localhost:8848
+        file-extension: yaml
 
   datasource:
     url: jdbc:mysql://localhost:3307/user_service?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true

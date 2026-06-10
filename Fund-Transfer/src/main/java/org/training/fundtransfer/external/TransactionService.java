@@ -11,7 +11,8 @@ import org.training.fundtransfer.model.dto.response.Response;
 
 import java.util.List;
 
-@FeignClient(name = "transaction-service", configuration = FeignClientConfiguration.class)
+@FeignClient(name = "transaction-service", configuration = FeignClientConfiguration.class,
+        fallback = org.training.fundtransfer.external.fallback.TransactionServiceFallback.class)
 public interface TransactionService {
 
     /**

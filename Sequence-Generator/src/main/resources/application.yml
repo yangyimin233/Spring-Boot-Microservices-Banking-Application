@@ -1,6 +1,16 @@
 spring:
+  config:
+    import: optional:nacos:${spring.application.name}.yml
   application:
     name: sequence-generator
+
+  cloud:
+    nacos:
+      discovery:
+        server-addr: localhost:8848
+      config:
+        server-addr: localhost:8848
+        file-extension: yaml
 
   datasource:
     url: jdbc:mysql://localhost:3307/sequence_generator

@@ -1,9 +1,19 @@
 spring:
+  config:
+    import: optional:nacos:${spring.application.name}.yml
   application:
     name: transaction-service
     bad_request: 400
     conflict: 409
     ok: 200
+
+  cloud:
+    nacos:
+      discovery:
+        server-addr: localhost:8848
+      config:
+        server-addr: localhost:8848
+        file-extension: yaml
 
   datasource:
     url: jdbc:mysql://localhost:3307/transaction_service
