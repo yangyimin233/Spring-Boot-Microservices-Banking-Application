@@ -15,4 +15,7 @@ public interface AccountService {
 
     @PutMapping("/accounts/internal/{accountNumber}")
     ResponseEntity<Response> updateAccount(@PathVariable String accountNumber, @RequestBody Account account);
+
+    @PutMapping("/accounts/internal/{accountNumber}/recalculate")
+    ResponseEntity<Response> recalculateBalance(@PathVariable String accountNumber);
 }

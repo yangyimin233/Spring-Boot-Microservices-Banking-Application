@@ -100,6 +100,9 @@ public class TransactionServiceImpl implements TransactionService {
         // 校验借贷平衡
         validateBalance(voucher.getId());
 
+        // 触发票余额重算
+        accountService.recalculateBalance(transactionDto.getAccountId());
+
         log.info("凭证 {} 记账完成 | {} | 分录数={}", voucherNo, transactionDto.getTransactionType(), entries.size());
 
         return Response.builder()
