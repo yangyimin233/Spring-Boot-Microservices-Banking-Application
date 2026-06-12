@@ -17,6 +17,8 @@ public class Transaction {
 
     private String transactionType;
 
+    private String direction;
+
     private BigDecimal amount;
 
     private String description;

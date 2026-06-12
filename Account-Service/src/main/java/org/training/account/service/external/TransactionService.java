@@ -6,17 +6,16 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.training.account.service.configuration.FeignConfiguration;
 import org.training.account.service.model.dto.external.TransactionResponse;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 @FeignClient(name = "transaction-service", configuration = FeignConfiguration.class)
 public interface TransactionService {
 
-    /**
-     * Retrieves a list of transactions from the specified account ID.
-     *
-     * @param accountId the ID of the account
-     * @return a list of transaction responses
-     */
     @GetMapping("/transactions")
     List<TransactionResponse> getTransactionsFromAccountId(@RequestParam String accountId);
+
+    /** 从分录表计算实时余额 */
+    @GetMapping("/transactions/internal/balance")
+    BigDecimal getAccountBalance(@RequestParam String accountId);
 }

@@ -93,81 +93,50 @@ public class FundTransferServiceImpl implements FundTransferService {
     }
 
     /**
-     * Transfers funds with compensating transaction pattern (Saga).
-     * Step 1: Debit fromAccount via balance endpoint
-     * Step 2: Credit toAccount via balance endpoint
-     * Step 3: Record both transaction entries
-     *
-     * If step 2 or 3 fails after step 1 succeeded, the debit is REVERSED.
+     * 复式记账转账: 先创建借贷分录，再从分录表重算余额
+     * <p>
+     * 分录模型:
+     *   fromAccount: CREDIT (贷) — 资金转出，资产减少
+     *   toAccount:   DEBIT  (借) — 资金转入，资产增加
+     * <p>
+     * Saga 补偿: 如果分录创建后余额重算失败，记录异常日志
+     * (由于余额从分录派生，分录本身已提交，余额重算为重试安全操作)
      */
     private String internalTransfer(Account fromAccount, Account toAccount, BigDecimal amount) {
-        BigDecimal originalFromBalance = fromAccount.getAvailableBalance();
-        BigDecimal originalToBalance = toAccount.getAvailableBalance();
-        boolean fromDebited = false;
-        boolean toCredited = false;
+        String transactionReference = UUID.randomUUID().toString();
 
         try {
-            // Step 1: Debit fromAccount
-            BigDecimal newFromBalance = fromAccount.getAvailableBalance().subtract(amount);
-            accountService.updateBalance(fromAccount.getAccountNumber(), java.util.Map.of("balance", newFromBalance));
-            fromDebited = true;
-            log.info("Debited {} from account {}", amount, fromAccount.getAccountNumber());
-
-            // Step 2: Credit toAccount
-            BigDecimal newToBalance = toAccount.getAvailableBalance().add(amount);
-            accountService.updateBalance(toAccount.getAccountNumber(), java.util.Map.of("balance", newToBalance));
-            toCredited = true;
-            log.info("Credited {} to account {}", amount, toAccount.getAccountNumber());
-
-            // Step 3: Record transactions
-            String transactionReference = UUID.randomUUID().toString();
-            List<Transaction> transactions = List.of(
+            // Step 1: 创建复式记账分录 (借贷自动平衡)
+            List<Transaction> entries = List.of(
                     Transaction.builder()
                             .accountId(fromAccount.getAccountNumber())
                             .transactionType("INTERNAL_TRANSFER")
-                            .amount(amount.negate())
-                            .description("Internal fund transfer from " + fromAccount.getAccountNumber()
-                                    + " to " + toAccount.getAccountNumber())
+                            .direction("CREDIT")    // 资金转出 = 贷方
+                            .amount(amount)
+                            .description("转账至 " + toAccount.getAccountNumber())
                             .build(),
                     Transaction.builder()
                             .accountId(toAccount.getAccountNumber())
                             .transactionType("INTERNAL_TRANSFER")
+                            .direction("DEBIT")     // 资金转入 = 借方
                             .amount(amount)
-                            .description("Internal fund transfer received from: " + fromAccount.getAccountNumber())
+                            .description("来自 " + fromAccount.getAccountNumber() + " 的转账")
                             .build());
 
-            transactionService.makeInternalTransactions(transactions, transactionReference);
+            transactionService.makeInternalTransactions(entries, transactionReference);
+            log.info("分录已创建: reference={}, DEBIT={} = CREDIT={}", transactionReference, amount, amount);
+
+            // Step 2: 从分录表重算并刷新余额缓存
+            accountService.recalculateBalance(fromAccount.getAccountNumber());
+            accountService.recalculateBalance(toAccount.getAccountNumber());
+            log.info("余额已重算: from={}, to={}", fromAccount.getAccountNumber(), toAccount.getAccountNumber());
+
             return transactionReference;
 
         } catch (Exception e) {
-            log.error("Fund transfer failed at step (debited={}, credited={}): {}", fromDebited, toCredited, e.getMessage());
-
-            // Compensating action: if fromAccount was debited but toAccount wasn't credited, reverse the debit
-            if (fromDebited && !toCredited) {
-                try {
-                    log.warn("COMPENSATION: Reversing debit of {} from account {}", amount, fromAccount.getAccountNumber());
-                    accountService.updateBalance(fromAccount.getAccountNumber(), java.util.Map.of("balance", originalFromBalance));
-                    log.info("COMPENSATION SUCCESS: Debit reversed for account {}", fromAccount.getAccountNumber());
-                } catch (Exception compEx) {
-                    log.error("CRITICAL: Compensation failed for account {}. Manual intervention required! " +
-                                    "Original balance: {}, Amount: {}",
-                            fromAccount.getAccountNumber(), originalFromBalance, amount, compEx);
-                }
-            }
-
-            // If toAccount was credited but transaction recording failed, reverse the credit too
-            if (toCredited) {
-                try {
-                    log.warn("COMPENSATION: Reversing credit of {} from account {}", amount, toAccount.getAccountNumber());
-                    accountService.updateBalance(toAccount.getAccountNumber(), java.util.Map.of("balance", originalToBalance));
-                    log.info("COMPENSATION SUCCESS: Credit reversed for account {}", toAccount.getAccountNumber());
-                } catch (Exception compEx) {
-                    log.error("CRITICAL: Credit compensation failed for account {}. Manual intervention required!",
-                            toAccount.getAccountNumber(), compEx);
-                }
-            }
-
-            throw new RuntimeException("Fund transfer failed and was compensated", e);
+            log.error("转账失败: reference={}, from={}, to={}, error={}",
+                    transactionReference, fromAccount.getAccountNumber(), toAccount.getAccountNumber(), e.getMessage());
+            throw new RuntimeException("Fund transfer failed", e);
         }
     }
 

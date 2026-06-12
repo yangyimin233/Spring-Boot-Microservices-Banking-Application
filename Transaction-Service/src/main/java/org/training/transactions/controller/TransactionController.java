@@ -56,6 +56,12 @@ public class TransactionController {
         return new ResponseEntity<>(transactionService.getTransactionByTransactionReference(referenceId), HttpStatus.OK);
     }
 
+    /** 内部用: 查询某账户的实时余额（从分录表计算） */
+    @GetMapping("/internal/balance")
+    public ResponseEntity<java.math.BigDecimal> getAccountBalance(@RequestParam String accountId) {
+        return ResponseEntity.ok(transactionService.getAccountBalance(accountId));
+    }
+
     // Helper
 
     private void verifyAccountOwnership(String accountId) {

@@ -4,7 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.training.transactions.model.TransactionType;
+import org.training.transactions.model.Direction;
 
 import java.math.BigDecimal;
 
@@ -14,11 +14,18 @@ import java.math.BigDecimal;
 @Builder
 public class TransactionDto {
 
+    /** 账户编号 */
     private String accountId;
 
+    /** 交易类型 */
     private String transactionType;
 
+    /** 借贷方向 */
+    private Direction direction;
+
+    /** 金额（正数） */
     private BigDecimal amount;
 
+    /** 摘要说明 */
     private String description;
 }

@@ -44,9 +44,9 @@ public interface AccountService {
     Response updateAccount(String accountNumber, AccountDto accountDto);
 
     /**
-     * Updates the balance of the account with the specified account number (internal use).
+     * 从分录表重新计算账户余额（替代直接设值的 updateBalance）
      */
-    Response updateBalance(String accountNumber, java.math.BigDecimal newBalance);
+    Response recalculateBalance(String accountNumber);
 
     /**
      * Retrieves the balance of the account with the specified account number.

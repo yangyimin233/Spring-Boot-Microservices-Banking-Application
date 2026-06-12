@@ -4,40 +4,33 @@ import org.training.transactions.model.dto.TransactionDto;
 import org.training.transactions.model.response.Response;
 import org.training.transactions.model.response.TransactionRequest;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 public interface TransactionService {
 
     /**
-     * Adds a transaction.
-     *
-     * @param transactionDto The transaction to add.
-     * @return The response indicating whether the transaction was successfully added.
+     * 单笔记账（存款/取款） — 借贷都在同一凭证内
      */
     Response addTransaction(TransactionDto transactionDto);
 
     /**
-     * Process an internal transaction.
-     *
-     * @param transactionDtos The list of transaction DTOs to process.
-     * @param transactionReference The transaction reference.
-     * @return The response of the internal transaction.
+     * 内部转账 — 多笔分录组成一个凭证，借贷自动平衡
      */
     Response internalTransaction(List<TransactionDto> transactionDtos, String transactionReference);
 
     /**
-     * Retrieves a list of transaction requests for a given account ID.
-     *
-     * @param accountId the ID of the account
-     * @return a list of transaction requests
+     * 查询某账户的流水
      */
     List<TransactionRequest> getTransaction(String accountId);
 
     /**
-     * Retrieves a list of transaction requests by transaction reference.
-     *
-     * @param transactionReference The transaction reference to search for.
-     * @return A list of transaction requests matching the given transaction reference.
+     * 按参照号查凭证
      */
     List<TransactionRequest> getTransactionByTransactionReference(String transactionReference);
+
+    /**
+     * 计算某账户的实时余额: SUM(DEBIT) - SUM(CREDIT)
+     */
+    BigDecimal getAccountBalance(String accountId);
 }

@@ -95,10 +95,9 @@ public class AccountController {
         return ResponseEntity.ok(accountService.updateAccount(accountNumber, accountDto));
     }
 
-    @PutMapping("/internal/{accountNumber}/balance")
-    public ResponseEntity<Response> updateBalance(@PathVariable String accountNumber,
-                                                   @RequestBody java.util.Map<String, java.math.BigDecimal> body) {
-        return ResponseEntity.ok(accountService.updateBalance(accountNumber, body.get("balance")));
+    @PutMapping("/internal/{accountNumber}/recalculate")
+    public ResponseEntity<Response> recalculateBalance(@PathVariable String accountNumber) {
+        return ResponseEntity.ok(accountService.recalculateBalance(accountNumber));
     }
 
     // Helper methods

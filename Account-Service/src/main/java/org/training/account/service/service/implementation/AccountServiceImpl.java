@@ -108,15 +108,21 @@ public class AccountServiceImpl implements AccountService {
                 }).orElseThrow(() -> new ResourceNotFound("Account not found on the server"));
     }
 
+    /**
+     * 从 transaction-service 的分录表重新计算余额
+     * 替代了旧的 updateBalance()，余额不再被外部直接修改
+     */
     @Override
-    public Response updateBalance(String accountNumber, BigDecimal newBalance) {
+    public Response recalculateBalance(String accountNumber) {
         return accountRepository.findAccountByAccountNumber(accountNumber)
                 .map(account -> {
+                    BigDecimal newBalance = transactionService.getAccountBalance(accountNumber);
                     account.setAvailableBalance(newBalance);
                     accountRepository.save(account);
+                    log.info("Account {} balance recalculated: {}", accountNumber, newBalance);
                     return Response.builder()
                             .responseCode(success)
-                            .message("Balance updated successfully").build();
+                            .message("Balance recalculated successfully").build();
                 }).orElseThrow(() -> new ResourceNotFound("Account not found on the server"));
     }
 

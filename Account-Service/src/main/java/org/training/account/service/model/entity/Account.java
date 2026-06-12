@@ -34,7 +34,12 @@ public class Account {
     @CreationTimestamp
     private LocalDate openingDate;
 
+    /** 缓存余额（非实时，由分录表定期重算刷新） */
     private BigDecimal availableBalance;
+
+    /** 实时分录余额（不存库，从 transaction-service 分录表实时计算） */
+    @Transient
+    private BigDecimal ledgerBalance;
 
     private Long userId;
 }
