@@ -205,13 +205,13 @@ public class TransactionServiceImpl implements TransactionService {
         List<JournalEntry> entries = new ArrayList<>();
 
         if (TransactionType.DEPOSIT.toString().equals(dto.getTransactionType())) {
-            // 存款: 银行收到现金(负债增加=CREDIT 内部现金)，客户账户增加(DEBIT)
-            entries.add(buildEntry(voucherId, cashAccount, Direction.CREDIT, dto.getAmount(), "银行现金入库"));
-            entries.add(buildEntry(voucherId, dto.getAccountId(), Direction.DEBIT, dto.getAmount(), dto.getDescription()));
-        } else if (TransactionType.WITHDRAWAL.toString().equals(dto.getTransactionType())) {
-            // 取款: 客户账户减少(CREDIT)，银行付出现金(DEBIT)
+            // 存款: 银行负债增加(CREDIT)，对应现金资产增加(DEBIT)
             entries.add(buildEntry(voucherId, dto.getAccountId(), Direction.CREDIT, dto.getAmount(), dto.getDescription()));
-            entries.add(buildEntry(voucherId, cashAccount, Direction.DEBIT, dto.getAmount(), "银行现金出库"));
+            entries.add(buildEntry(voucherId, cashAccount, Direction.DEBIT, dto.getAmount(), "银行现金入库"));
+        } else if (TransactionType.WITHDRAWAL.toString().equals(dto.getTransactionType())) {
+            // 取款: 银行负债减少(DEBIT)，对应现金资产减少(CREDIT)
+            entries.add(buildEntry(voucherId, dto.getAccountId(), Direction.DEBIT, dto.getAmount(), dto.getDescription()));
+            entries.add(buildEntry(voucherId, cashAccount, Direction.CREDIT, dto.getAmount(), "银行现金出库"));
         }
         return entries;
     }

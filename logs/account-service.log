@@ -1,0 +1,3 @@
+Unexpected error (103) returned by AddToSystemClassLoaderSearch
+Unable to add D:/skywalking-agent/skywalking-agent.jar to system class path - the system class loader does not define the appendToClassPathForInstrumentation method or the method failed
+FATAL ERROR in native method: processing of -javaagent failed, appending to system class path failed

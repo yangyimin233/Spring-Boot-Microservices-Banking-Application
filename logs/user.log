@@ -1,0 +1,173 @@
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+ :: Spring Boot ::               (v2.7.14)
+
+2026-06-10 15:34:23.686  INFO 20052 --- [           main] o.t.user.service.UserServiceApplication  : Starting UserServiceApplication v0.0.1-SNAPSHOT using Java 17.0.15 on DESKTOP-OYR3XBK with PID 20052 (C:\Users\Admin\IdeaProjects\Spring-Boot-Microservices-Banking-Application\User-Service\target\userservice-0.0.1-SNAPSHOT.jar started by Admin in C:\Users\Admin\IdeaProjects\Spring-Boot-Microservices-Banking-Application)
+2026-06-10 15:34:23.690  INFO 20052 --- [           main] o.t.user.service.UserServiceApplication  : No active profile set, falling back to 1 default profile: "default"
+2026-06-10 15:34:23.729  WARN 20052 --- [           main] c.a.c.n.c.NacosConfigDataLoader          : [Nacos Config] config[dataId=user-service.yml, group=DEFAULT_GROUP] is empty
+2026-06-10 15:34:24.671  INFO 20052 --- [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-06-10 15:34:24.846  INFO 20052 --- [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 162 ms. Found 1 JPA repository interfaces.
+2026-06-10 15:34:25.146  INFO 20052 --- [           main] o.s.cloud.context.scope.GenericScope     : BeanFactory id=be634e5c-cc8b-32c9-8970-ba565a1522b3
+2026-06-10 15:34:25.916  INFO 20052 --- [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat initialized with port(s): 8082 (http)
+2026-06-10 15:34:25.930  INFO 20052 --- [           main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2026-06-10 15:34:25.930  INFO 20052 --- [           main] org.apache.catalina.core.StandardEngine  : Starting Servlet engine: [Apache Tomcat/9.0.78]
+2026-06-10 15:34:26.018  INFO 20052 --- [           main] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring embedded WebApplicationContext
+2026-06-10 15:34:26.019  INFO 20052 --- [           main] w.s.c.ServletWebServerApplicationContext : Root WebApplicationContext: initialization completed in 2288 ms
+2026-06-10 15:34:26.584  INFO 20052 --- [           main] o.hibernate.jpa.internal.util.LogHelper  : HHH000204: Processing PersistenceUnitInfo [name: default]
+2026-06-10 15:34:26.666  INFO 20052 --- [           main] org.hibernate.Version                    : HHH000412: Hibernate ORM core version 5.6.15.Final
+2026-06-10 15:34:26.818  INFO 20052 --- [           main] o.hibernate.annotations.common.Version   : HCANN000001: Hibernate Commons Annotations {5.1.2.Final}
+2026-06-10 15:34:26.894  INFO 20052 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-06-10 15:34:27.036  INFO 20052 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2026-06-10 15:34:27.055  INFO 20052 --- [           main] org.hibernate.dialect.Dialect            : HHH000400: Using dialect: org.hibernate.dialect.MySQL8Dialect
+2026-06-10 15:34:27.659  INFO 20052 --- [           main] o.h.e.t.j.p.i.JtaPlatformInitiator       : HHH000490: Using JtaPlatform implementation: [org.hibernate.engine.transaction.jta.platform.internal.NoJtaPlatform]
+2026-06-10 15:34:27.668  INFO 20052 --- [           main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-06-10 15:34:28.221  WARN 20052 --- [           main] JpaBaseConfiguration$JpaWebConfiguration : spring.jpa.open-in-view is enabled by default. Therefore, database queries may be performed during view rendering. Explicitly configure spring.jpa.open-in-view to disable this warning
+2026-06-10 15:34:28.274  INFO 20052 --- [           main] o.s.c.openfeign.FeignClientFactoryBean   : For 'account-service' URL not provided. Will try picking an instance via load-balancing.
+2026-06-10 15:34:28.514  WARN 20052 --- [           main] .s.s.UserDetailsServiceAutoConfiguration : 
+
+Using generated security password: 3adc94ae-fba2-4c87-ab10-481fa1e7f6eb
+
+This generated password is for development use only. Your security configuration must be updated before running your application in production.
+
+2026-06-10 15:34:28.735  INFO 20052 --- [           main] o.s.s.web.DefaultSecurityFilterChain     : Will secure any request with [org.springframework.security.web.session.DisableEncodeUrlFilter@1ca610a0, org.springframework.security.web.context.request.async.WebAsyncManagerIntegrationFilter@49433c98, org.springframework.security.web.context.SecurityContextPersistenceFilter@ee8e7ff, org.springframework.security.web.header.HeaderWriterFilter@3aed69dd, org.springframework.security.web.authentication.logout.LogoutFilter@60cb1ed6, org.training.user.service.security.JwtAuthenticationFilter@30b2b76f, org.springframework.security.web.savedrequest.RequestCacheAwareFilter@64b70f41, org.springframework.security.web.servletapi.SecurityContextHolderAwareRequestFilter@16134476, org.springframework.security.web.authentication.AnonymousAuthenticationFilter@b5c6a30, org.springframework.security.web.session.SessionManagementFilter@3a4aadf8, org.springframework.security.web.access.ExceptionTranslationFilter@3e33b52e, org.springframework.security.web.access.intercept.AuthorizationFilter@3d8d17a3]
+2026-06-10 15:34:29.755  WARN 20052 --- [           main] iguration$LoadBalancerCaffeineWarnLogger : Spring Cloud LoadBalancer is currently working with the default cache. While this cache implementation is useful for development and tests, it's recommended to use Caffeine cache in production.You can switch to using Caffeine cache, by adding it and org.springframework.cache.caffeine.CaffeineCacheManager to the classpath.
+2026-06-10 15:34:29.762  INFO 20052 --- [           main] o.s.b.a.e.web.EndpointLinksResolver      : Exposing 1 endpoint(s) beneath base path '/actuator'
+2026-06-10 15:34:29.799  INFO 20052 --- [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat started on port(s): 8082 (http) with context path ''
+2026-06-10 15:34:29.828  INFO 20052 --- [           main] c.a.n.p.a.s.c.ClientAuthPluginManager    : [ClientAuthPluginManager] Load ClientAuthService com.alibaba.nacos.client.auth.impl.NacosClientAuthServiceImpl success.
+2026-06-10 15:34:29.828  INFO 20052 --- [           main] c.a.n.p.a.s.c.ClientAuthPluginManager    : [ClientAuthPluginManager] Load ClientAuthService com.alibaba.nacos.client.auth.ram.RamClientAuthServiceImpl success.
+2026-06-10 15:34:29.983  INFO 20052 --- [           main] c.a.c.n.registry.NacosServiceRegistry    : nacos registry, DEFAULT_GROUP user-service 192.168.1.118:8082 register finished
+2026-06-10 15:34:30.049  INFO 20052 --- [           main] o.t.user.service.UserServiceApplication  : Started UserServiceApplication in 8.215 seconds (JVM running for 8.72)
+2026-06-10 15:34:30.090  INFO 20052 --- [           main] c.a.c.n.refresh.NacosContextRefresher    : [Nacos Config] Listening config: dataId=user-service.yml, group=DEFAULT_GROUP
+2026-06-10 15:35:02.892  INFO 20052 --- [nio-8082-exec-1] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-06-10 15:35:02.892  INFO 20052 --- [nio-8082-exec-1] o.s.web.servlet.DispatcherServlet        : Initializing Servlet 'dispatcherServlet'
+2026-06-10 15:35:02.894  INFO 20052 --- [nio-8082-exec-1] o.s.web.servlet.DispatcherServlet        : Completed initialization in 1 ms
+Hibernate: 
+    select
+        user0_.user_id as user_id1_0_,
+        user0_.auth_id as auth_id2_0_,
+        user0_.contact_no as contact_3_0_,
+        user0_.creation_on as creation4_0_,
+        user0_.email_id as email_id5_0_,
+        user0_.identification_number as identifi6_0_,
+        user0_.password as password7_0_,
+        user0_.status as status8_0_,
+        user0_.user_profile_id as user_pro9_0_ 
+    from
+        user user0_ 
+    where
+        user0_.email_id=?
+Hibernate: 
+    select
+        userprofil0_.user_profile_id as user_pro1_1_0_,
+        userprofil0_.address as address2_1_0_,
+        userprofil0_.first_name as first_na3_1_0_,
+        userprofil0_.gender as gender4_1_0_,
+        userprofil0_.last_name as last_nam5_1_0_,
+        userprofil0_.martial_status as martial_6_1_0_,
+        userprofil0_.nationality as national7_1_0_,
+        userprofil0_.occupation as occupati8_1_0_ 
+    from
+        user_profile userprofil0_ 
+    where
+        userprofil0_.user_profile_id=?
+2026-06-10 15:35:31.617  INFO 20052 --- [nio-8082-exec-2] o.t.u.service.controller.UserController  : reading user by ID
+Hibernate: 
+    select
+        user0_.user_id as user_id1_0_0_,
+        user0_.auth_id as auth_id2_0_0_,
+        user0_.contact_no as contact_3_0_0_,
+        user0_.creation_on as creation4_0_0_,
+        user0_.email_id as email_id5_0_0_,
+        user0_.identification_number as identifi6_0_0_,
+        user0_.password as password7_0_0_,
+        user0_.status as status8_0_0_,
+        user0_.user_profile_id as user_pro9_0_0_,
+        userprofil1_.user_profile_id as user_pro1_1_1_,
+        userprofil1_.address as address2_1_1_,
+        userprofil1_.first_name as first_na3_1_1_,
+        userprofil1_.gender as gender4_1_1_,
+        userprofil1_.last_name as last_nam5_1_1_,
+        userprofil1_.martial_status as martial_6_1_1_,
+        userprofil1_.nationality as national7_1_1_,
+        userprofil1_.occupation as occupati8_1_1_ 
+    from
+        user user0_ 
+    left outer join
+        user_profile userprofil1_ 
+            on user0_.user_profile_id=userprofil1_.user_profile_id 
+    where
+        user0_.user_id=?
+2026-06-10 15:36:21.202  INFO 20052 --- [nio-8082-exec-4] o.t.u.service.controller.UserController  : reading user by ID
+Hibernate: 
+    select
+        user0_.user_id as user_id1_0_0_,
+        user0_.auth_id as auth_id2_0_0_,
+        user0_.contact_no as contact_3_0_0_,
+        user0_.creation_on as creation4_0_0_,
+        user0_.email_id as email_id5_0_0_,
+        user0_.identification_number as identifi6_0_0_,
+        user0_.password as password7_0_0_,
+        user0_.status as status8_0_0_,
+        user0_.user_profile_id as user_pro9_0_0_,
+        userprofil1_.user_profile_id as user_pro1_1_1_,
+        userprofil1_.address as address2_1_1_,
+        userprofil1_.first_name as first_na3_1_1_,
+        userprofil1_.gender as gender4_1_1_,
+        userprofil1_.last_name as last_nam5_1_1_,
+        userprofil1_.martial_status as martial_6_1_1_,
+        userprofil1_.nationality as national7_1_1_,
+        userprofil1_.occupation as occupati8_1_1_ 
+    from
+        user user0_ 
+    left outer join
+        user_profile userprofil1_ 
+            on user0_.user_profile_id=userprofil1_.user_profile_id 
+    where
+        user0_.user_id=?
+2026-06-10 15:48:24.306  INFO 20052 --- [nio-8082-exec-7] o.t.u.service.controller.UserController  : reading user by ID
+Hibernate: 
+    select
+        user0_.user_id as user_id1_0_0_,
+        user0_.auth_id as auth_id2_0_0_,
+        user0_.contact_no as contact_3_0_0_,
+        user0_.creation_on as creation4_0_0_,
+        user0_.email_id as email_id5_0_0_,
+        user0_.identification_number as identifi6_0_0_,
+        user0_.password as password7_0_0_,
+        user0_.status as status8_0_0_,
+        user0_.user_profile_id as user_pro9_0_0_,
+        userprofil1_.user_profile_id as user_pro1_1_1_,
+        userprofil1_.address as address2_1_1_,
+        userprofil1_.first_name as first_na3_1_1_,
+        userprofil1_.gender as gender4_1_1_,
+        userprofil1_.last_name as last_nam5_1_1_,
+        userprofil1_.martial_status as martial_6_1_1_,
+        userprofil1_.nationality as national7_1_1_,
+        userprofil1_.occupation as occupati8_1_1_ 
+    from
+        user user0_ 
+    left outer join
+        user_profile userprofil1_ 
+            on user0_.user_profile_id=userprofil1_.user_profile_id 
+    where
+        user0_.user_id=?
+[48033.073s][warning][os,thread] Failed to start thread "Unknown thread" - _beginthreadex failed (EINVAL) for attributes: stacksize: default, flags: CREATE_SUSPENDED STACK_SIZE_PARAM_IS.
+[48033.074s][warning][os,thread] Failed to start the native thread for java.lang.Thread "nacos-grpc-client-executor-localhost-9587"
+[48076.491s][warning][os,thread] Failed to start thread "Unknown thread" - _beginthreadex failed (EINVAL) for attributes: stacksize: default, flags: CREATE_SUSPENDED STACK_SIZE_PARAM_IS.
+[48076.491s][warning][os,thread] Failed to start the native thread for java.lang.Thread "nacos-grpc-client-executor-localhost-9613"
+[48077.507s][warning][os,thread] Failed to start thread "Unknown thread" - _beginthreadex failed (EINVAL) for attributes: stacksize: default, flags: CREATE_SUSPENDED STACK_SIZE_PARAM_IS.
+[48077.508s][warning][os,thread] Failed to start the native thread for java.lang.Thread "nacos-grpc-client-executor-localhost-9615"
+#
+# A fatal error has been detected by the Java Runtime Environment:
+#
+#  EXCEPTION_ACCESS_VIOLATION (0xc0000005) at pc=0x00007fffaca3ead3, pid=20052, tid=15272
+#
+# JRE version: OpenJDK Runtime Environment Microsoft-11369865 (17.0.15+6) (build 17.0.15+6-LTS)
+# Java VM: OpenJDK 64-Bit Server VM Microsoft-11369865 (17.0.15+6-LTS, mixed mode, sharing, tiered, compressed oops, compressed class ptrs, g1 gc, windows-amd64)
+# Problematic frame:
+# V  [jvm.dll+0x38ead3]

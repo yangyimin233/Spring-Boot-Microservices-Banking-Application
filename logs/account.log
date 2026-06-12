@@ -1,0 +1,316 @@
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+ :: Spring Boot ::               (v2.7.15)
+
+2026-06-10 15:33:23.501  INFO 15836 --- [           main] o.t.a.service.AccountServiceApplication  : Starting AccountServiceApplication v0.0.1-SNAPSHOT using Java 17.0.15 on DESKTOP-OYR3XBK with PID 15836 (C:\Users\Admin\IdeaProjects\Spring-Boot-Microservices-Banking-Application\Account-Service\target\accountService-0.0.1-SNAPSHOT.jar started by Admin in C:\Users\Admin\IdeaProjects\Spring-Boot-Microservices-Banking-Application)
+2026-06-10 15:33:23.502  INFO 15836 --- [           main] o.t.a.service.AccountServiceApplication  : No active profile set, falling back to 1 default profile: "default"
+2026-06-10 15:33:23.547  WARN 15836 --- [           main] c.a.c.n.c.NacosConfigDataLoader          : [Nacos Config] config[dataId=account-service.yml, group=DEFAULT_GROUP] is empty
+2026-06-10 15:33:24.586  INFO 15836 --- [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-06-10 15:33:24.769  INFO 15836 --- [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 171 ms. Found 1 JPA repository interfaces.
+2026-06-10 15:33:25.022  INFO 15836 --- [           main] o.s.cloud.context.scope.GenericScope     : BeanFactory id=cfa10213-bdf5-3ce8-9f93-a1dfc5ed8926
+2026-06-10 15:33:25.738  INFO 15836 --- [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat initialized with port(s): 8081 (http)
+2026-06-10 15:33:25.749  INFO 15836 --- [           main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2026-06-10 15:33:25.749  INFO 15836 --- [           main] org.apache.catalina.core.StandardEngine  : Starting Servlet engine: [Apache Tomcat/9.0.79]
+2026-06-10 15:33:25.840  INFO 15836 --- [           main] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring embedded WebApplicationContext
+2026-06-10 15:33:25.840  INFO 15836 --- [           main] w.s.c.ServletWebServerApplicationContext : Root WebApplicationContext: initialization completed in 2291 ms
+2026-06-10 15:33:26.324  INFO 15836 --- [           main] o.hibernate.jpa.internal.util.LogHelper  : HHH000204: Processing PersistenceUnitInfo [name: default]
+2026-06-10 15:33:26.406  INFO 15836 --- [           main] org.hibernate.Version                    : HHH000412: Hibernate ORM core version 5.6.15.Final
+2026-06-10 15:33:26.542  INFO 15836 --- [           main] o.hibernate.annotations.common.Version   : HCANN000001: Hibernate Commons Annotations {5.1.2.Final}
+2026-06-10 15:33:26.617  INFO 15836 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-06-10 15:33:26.807  INFO 15836 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2026-06-10 15:33:26.837  INFO 15836 --- [           main] org.hibernate.dialect.Dialect            : HHH000400: Using dialect: org.hibernate.dialect.MySQL8Dialect
+2026-06-10 15:33:27.315  INFO 15836 --- [           main] o.h.e.t.j.p.i.JtaPlatformInitiator       : HHH000490: Using JtaPlatform implementation: [org.hibernate.engine.transaction.jta.platform.internal.NoJtaPlatform]
+2026-06-10 15:33:27.323  INFO 15836 --- [           main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-06-10 15:33:27.446  WARN 15836 --- [           main] JpaBaseConfiguration$JpaWebConfiguration : spring.jpa.open-in-view is enabled by default. Therefore, database queries may be performed during view rendering. Explicitly configure spring.jpa.open-in-view to disable this warning
+2026-06-10 15:33:27.515  INFO 15836 --- [           main] o.s.c.openfeign.FeignClientFactoryBean   : For 'user-service' URL not provided. Will try picking an instance via load-balancing.
+2026-06-10 15:33:28.030  INFO 15836 --- [           main] o.s.c.openfeign.FeignClientFactoryBean   : For 'sequence-generator' URL not provided. Will try picking an instance via load-balancing.
+2026-06-10 15:33:28.058  INFO 15836 --- [           main] o.s.c.openfeign.FeignClientFactoryBean   : For 'transaction-service' URL not provided. Will try picking an instance via load-balancing.
+2026-06-10 15:33:28.156  WARN 15836 --- [           main] .s.s.UserDetailsServiceAutoConfiguration : 
+
+Using generated security password: a3873a17-a0e7-449a-951a-aff5855548b7
+
+This generated password is for development use only. Your security configuration must be updated before running your application in production.
+
+2026-06-10 15:33:28.397  INFO 15836 --- [           main] o.s.s.web.DefaultSecurityFilterChain     : Will secure any request with [org.springframework.security.web.session.DisableEncodeUrlFilter@5a0e0886, org.springframework.security.web.context.request.async.WebAsyncManagerIntegrationFilter@3ad8717d, org.springframework.security.web.context.SecurityContextPersistenceFilter@75fe1619, org.springframework.security.web.header.HeaderWriterFilter@2b08772d, org.springframework.security.web.authentication.logout.LogoutFilter@3fe512d2, org.training.account.service.security.JwtAuthenticationFilter@3013909b, org.springframework.security.web.savedrequest.RequestCacheAwareFilter@5d66e944, org.springframework.security.web.servletapi.SecurityContextHolderAwareRequestFilter@4351ed61, org.springframework.security.web.authentication.AnonymousAuthenticationFilter@4293e066, org.springframework.security.web.session.SessionManagementFilter@1e54a6b1, org.springframework.security.web.access.ExceptionTranslationFilter@6002e944, org.springframework.security.web.access.intercept.AuthorizationFilter@691124ee]
+2026-06-10 15:33:29.611  INFO 15836 --- [           main] o.s.b.a.e.web.EndpointLinksResolver      : Exposing 1 endpoint(s) beneath base path '/actuator'
+2026-06-10 15:33:29.665  INFO 15836 --- [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat started on port(s): 8081 (http) with context path ''
+2026-06-10 15:33:29.697  INFO 15836 --- [           main] c.a.n.p.a.s.c.ClientAuthPluginManager    : [ClientAuthPluginManager] Load ClientAuthService com.alibaba.nacos.client.auth.impl.NacosClientAuthServiceImpl success.
+2026-06-10 15:33:29.697  INFO 15836 --- [           main] c.a.n.p.a.s.c.ClientAuthPluginManager    : [ClientAuthPluginManager] Load ClientAuthService com.alibaba.nacos.client.auth.ram.RamClientAuthServiceImpl success.
+2026-06-10 15:33:29.865  INFO 15836 --- [           main] c.a.c.n.registry.NacosServiceRegistry    : nacos registry, DEFAULT_GROUP account-service 192.168.1.118:8081 register finished
+2026-06-10 15:33:29.957  INFO 15836 --- [           main] o.t.a.service.AccountServiceApplication  : Started AccountServiceApplication in 8.482 seconds (JVM running for 9.108)
+2026-06-10 15:33:30.008  INFO 15836 --- [           main] c.a.c.n.refresh.NacosContextRefresher    : [Nacos Config] Listening config: dataId=account-service.yml, group=DEFAULT_GROUP
+2026-06-10 15:35:30.831  INFO 15836 --- [nio-8081-exec-1] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-06-10 15:35:30.832  INFO 15836 --- [nio-8081-exec-1] o.s.web.servlet.DispatcherServlet        : Initializing Servlet 'dispatcherServlet'
+2026-06-10 15:35:30.833  INFO 15836 --- [nio-8081-exec-1] o.s.web.servlet.DispatcherServlet        : Completed initialization in 1 ms
+Hibernate: 
+    select
+        account0_.account_id as account_1_0_,
+        account0_.account_number as account_2_0_,
+        account0_.account_status as account_3_0_,
+        account0_.account_type as account_4_0_,
+        account0_.available_balance as availabl5_0_,
+        account0_.opening_date as opening_6_0_,
+        account0_.user_id as user_id7_0_ 
+    from
+        account account0_ 
+    where
+        account0_.account_number=?
+Hibernate: 
+    select
+        account0_.account_id as account_1_0_,
+        account0_.account_number as account_2_0_,
+        account0_.account_status as account_3_0_,
+        account0_.account_type as account_4_0_,
+        account0_.available_balance as availabl5_0_,
+        account0_.opening_date as opening_6_0_,
+        account0_.user_id as user_id7_0_ 
+    from
+        account account0_ 
+    where
+        account0_.account_number=?
+Hibernate: 
+    select
+        account0_.account_id as account_1_0_,
+        account0_.account_number as account_2_0_,
+        account0_.account_status as account_3_0_,
+        account0_.account_type as account_4_0_,
+        account0_.available_balance as availabl5_0_,
+        account0_.opening_date as opening_6_0_,
+        account0_.user_id as user_id7_0_ 
+    from
+        account account0_ 
+    where
+        account0_.account_number=?
+Hibernate: 
+    select
+        account0_.account_id as account_1_0_,
+        account0_.account_number as account_2_0_,
+        account0_.account_status as account_3_0_,
+        account0_.account_type as account_4_0_,
+        account0_.available_balance as availabl5_0_,
+        account0_.opening_date as opening_6_0_,
+        account0_.user_id as user_id7_0_ 
+    from
+        account account0_ 
+    where
+        account0_.account_number=?
+Hibernate: 
+    update
+        account 
+    set
+        account_number=?,
+        account_status=?,
+        account_type=?,
+        available_balance=?,
+        opening_date=?,
+        user_id=? 
+    where
+        account_id=?
+Hibernate: 
+    select
+        account0_.account_id as account_1_0_,
+        account0_.account_number as account_2_0_,
+        account0_.account_status as account_3_0_,
+        account0_.account_type as account_4_0_,
+        account0_.available_balance as availabl5_0_,
+        account0_.opening_date as opening_6_0_,
+        account0_.user_id as user_id7_0_ 
+    from
+        account account0_ 
+    where
+        account0_.account_number=?
+Hibernate: 
+    update
+        account 
+    set
+        account_number=?,
+        account_status=?,
+        account_type=?,
+        available_balance=?,
+        opening_date=?,
+        user_id=? 
+    where
+        account_id=?
+Hibernate: 
+    select
+        account0_.account_id as account_1_0_,
+        account0_.account_number as account_2_0_,
+        account0_.account_status as account_3_0_,
+        account0_.account_type as account_4_0_,
+        account0_.available_balance as availabl5_0_,
+        account0_.opening_date as opening_6_0_,
+        account0_.user_id as user_id7_0_ 
+    from
+        account account0_ 
+    where
+        account0_.account_number=?
+Hibernate: 
+    select
+        account0_.account_id as account_1_0_,
+        account0_.account_number as account_2_0_,
+        account0_.account_status as account_3_0_,
+        account0_.account_type as account_4_0_,
+        account0_.available_balance as availabl5_0_,
+        account0_.opening_date as opening_6_0_,
+        account0_.user_id as user_id7_0_ 
+    from
+        account account0_ 
+    where
+        account0_.account_number=?
+Hibernate: 
+    select
+        account0_.account_id as account_1_0_,
+        account0_.account_number as account_2_0_,
+        account0_.account_status as account_3_0_,
+        account0_.account_type as account_4_0_,
+        account0_.available_balance as availabl5_0_,
+        account0_.opening_date as opening_6_0_,
+        account0_.user_id as user_id7_0_ 
+    from
+        account account0_ 
+    where
+        account0_.account_number=?
+Hibernate: 
+    select
+        account0_.account_id as account_1_0_,
+        account0_.account_number as account_2_0_,
+        account0_.account_status as account_3_0_,
+        account0_.account_type as account_4_0_,
+        account0_.available_balance as availabl5_0_,
+        account0_.opening_date as opening_6_0_,
+        account0_.user_id as user_id7_0_ 
+    from
+        account account0_ 
+    where
+        account0_.account_number=?
+Hibernate: 
+    update
+        account 
+    set
+        account_number=?,
+        account_status=?,
+        account_type=?,
+        available_balance=?,
+        opening_date=?,
+        user_id=? 
+    where
+        account_id=?
+Hibernate: 
+    select
+        account0_.account_id as account_1_0_,
+        account0_.account_number as account_2_0_,
+        account0_.account_status as account_3_0_,
+        account0_.account_type as account_4_0_,
+        account0_.available_balance as availabl5_0_,
+        account0_.opening_date as opening_6_0_,
+        account0_.user_id as user_id7_0_ 
+    from
+        account account0_ 
+    where
+        account0_.account_number=?
+Hibernate: 
+    update
+        account 
+    set
+        account_number=?,
+        account_status=?,
+        account_type=?,
+        available_balance=?,
+        opening_date=?,
+        user_id=? 
+    where
+        account_id=?
+Hibernate: 
+    select
+        account0_.account_id as account_1_0_,
+        account0_.account_number as account_2_0_,
+        account0_.account_status as account_3_0_,
+        account0_.account_type as account_4_0_,
+        account0_.available_balance as availabl5_0_,
+        account0_.opening_date as opening_6_0_,
+        account0_.user_id as user_id7_0_ 
+    from
+        account account0_ 
+    where
+        account0_.account_number=?
+Hibernate: 
+    select
+        account0_.account_id as account_1_0_,
+        account0_.account_number as account_2_0_,
+        account0_.account_status as account_3_0_,
+        account0_.account_type as account_4_0_,
+        account0_.available_balance as availabl5_0_,
+        account0_.opening_date as opening_6_0_,
+        account0_.user_id as user_id7_0_ 
+    from
+        account account0_ 
+    where
+        account0_.account_number=?
+Hibernate: 
+    select
+        account0_.account_id as account_1_0_,
+        account0_.account_number as account_2_0_,
+        account0_.account_status as account_3_0_,
+        account0_.account_type as account_4_0_,
+        account0_.available_balance as availabl5_0_,
+        account0_.opening_date as opening_6_0_,
+        account0_.user_id as user_id7_0_ 
+    from
+        account account0_ 
+    where
+        account0_.account_number=?
+Hibernate: 
+    select
+        account0_.account_id as account_1_0_,
+        account0_.account_number as account_2_0_,
+        account0_.account_status as account_3_0_,
+        account0_.account_type as account_4_0_,
+        account0_.available_balance as availabl5_0_,
+        account0_.opening_date as opening_6_0_,
+        account0_.user_id as user_id7_0_ 
+    from
+        account account0_ 
+    where
+        account0_.account_number=?
+Hibernate: 
+    update
+        account 
+    set
+        account_number=?,
+        account_status=?,
+        account_type=?,
+        available_balance=?,
+        opening_date=?,
+        user_id=? 
+    where
+        account_id=?
+Hibernate: 
+    select
+        account0_.account_id as account_1_0_,
+        account0_.account_number as account_2_0_,
+        account0_.account_status as account_3_0_,
+        account0_.account_type as account_4_0_,
+        account0_.available_balance as availabl5_0_,
+        account0_.opening_date as opening_6_0_,
+        account0_.user_id as user_id7_0_ 
+    from
+        account account0_ 
+    where
+        account0_.account_number=?
+Hibernate: 
+    update
+        account 
+    set
+        account_number=?,
+        account_status=?,
+        account_type=?,
+        available_balance=?,
+        opening_date=?,
+        user_id=? 
+    where
+        account_id=?

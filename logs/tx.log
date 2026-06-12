@@ -1,0 +1,106 @@
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+ :: Spring Boot ::               (v2.7.15)
+
+2026-06-10 15:33:33.376  INFO 17604 --- [           main] o.t.t.TransactionServiceApplication      : Starting TransactionServiceApplication v0.0.1-SNAPSHOT using Java 17.0.15 on DESKTOP-OYR3XBK with PID 17604 (C:\Users\Admin\IdeaProjects\Spring-Boot-Microservices-Banking-Application\Transaction-Service\target\transactions-0.0.1-SNAPSHOT.jar started by Admin in C:\Users\Admin\IdeaProjects\Spring-Boot-Microservices-Banking-Application)
+2026-06-10 15:33:33.377  INFO 17604 --- [           main] o.t.t.TransactionServiceApplication      : No active profile set, falling back to 1 default profile: "default"
+2026-06-10 15:33:33.417  WARN 17604 --- [           main] c.a.c.n.c.NacosConfigDataLoader          : [Nacos Config] config[dataId=transaction-service.yml, group=DEFAULT_GROUP] is empty
+2026-06-10 15:33:34.370  INFO 17604 --- [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-06-10 15:33:34.519  INFO 17604 --- [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 137 ms. Found 1 JPA repository interfaces.
+2026-06-10 15:33:34.746  INFO 17604 --- [           main] o.s.cloud.context.scope.GenericScope     : BeanFactory id=e841fe5f-fe27-383b-b78f-0e10e15fcf6b
+2026-06-10 15:33:35.249  INFO 17604 --- [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat initialized with port(s): 8084 (http)
+2026-06-10 15:33:35.258  INFO 17604 --- [           main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2026-06-10 15:33:35.258  INFO 17604 --- [           main] org.apache.catalina.core.StandardEngine  : Starting Servlet engine: [Apache Tomcat/9.0.79]
+2026-06-10 15:33:35.328  INFO 17604 --- [           main] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring embedded WebApplicationContext
+2026-06-10 15:33:35.328  INFO 17604 --- [           main] w.s.c.ServletWebServerApplicationContext : Root WebApplicationContext: initialization completed in 1910 ms
+2026-06-10 15:33:35.715  INFO 17604 --- [           main] o.hibernate.jpa.internal.util.LogHelper  : HHH000204: Processing PersistenceUnitInfo [name: default]
+2026-06-10 15:33:35.834  INFO 17604 --- [           main] org.hibernate.Version                    : HHH000412: Hibernate ORM core version 5.6.15.Final
+2026-06-10 15:33:36.074  INFO 17604 --- [           main] o.hibernate.annotations.common.Version   : HCANN000001: Hibernate Commons Annotations {5.1.2.Final}
+2026-06-10 15:33:36.167  INFO 17604 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-06-10 15:33:36.531  INFO 17604 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2026-06-10 15:33:36.561  INFO 17604 --- [           main] org.hibernate.dialect.Dialect            : HHH000400: Using dialect: org.hibernate.dialect.MySQL8Dialect
+2026-06-10 15:33:37.334  INFO 17604 --- [           main] o.h.e.t.j.p.i.JtaPlatformInitiator       : HHH000490: Using JtaPlatform implementation: [org.hibernate.engine.transaction.jta.platform.internal.NoJtaPlatform]
+2026-06-10 15:33:37.342  INFO 17604 --- [           main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-06-10 15:33:37.866  WARN 17604 --- [           main] JpaBaseConfiguration$JpaWebConfiguration : spring.jpa.open-in-view is enabled by default. Therefore, database queries may be performed during view rendering. Explicitly configure spring.jpa.open-in-view to disable this warning
+2026-06-10 15:33:37.915  INFO 17604 --- [           main] o.s.c.openfeign.FeignClientFactoryBean   : For 'account-service' URL not provided. Will try picking an instance via load-balancing.
+2026-06-10 15:33:38.002  INFO 17604 --- [           main] o.s.c.openfeign.FeignClientFactoryBean   : For 'user-service' URL not provided. Will try picking an instance via load-balancing.
+2026-06-10 15:33:38.083  WARN 17604 --- [           main] .s.s.UserDetailsServiceAutoConfiguration : 
+
+Using generated security password: f386a00f-9dbe-42cd-9696-3d703ccde80d
+
+This generated password is for development use only. Your security configuration must be updated before running your application in production.
+
+2026-06-10 15:33:38.277  INFO 17604 --- [           main] o.s.s.web.DefaultSecurityFilterChain     : Will secure any request with [org.springframework.security.web.session.DisableEncodeUrlFilter@6e8fdd19, org.springframework.security.web.context.request.async.WebAsyncManagerIntegrationFilter@35787726, org.springframework.security.web.context.SecurityContextPersistenceFilter@6b63abdc, org.springframework.security.web.header.HeaderWriterFilter@3fdcde7a, org.springframework.security.web.authentication.logout.LogoutFilter@622d7e4, org.training.transactions.configuration.TransactionJwtFilter@2199e845, org.springframework.security.web.savedrequest.RequestCacheAwareFilter@5f08fe00, org.springframework.security.web.servletapi.SecurityContextHolderAwareRequestFilter@7c5df615, org.springframework.security.web.authentication.AnonymousAuthenticationFilter@27976390, org.springframework.security.web.session.SessionManagementFilter@3e26482, org.springframework.security.web.access.ExceptionTranslationFilter@592ca48c, org.springframework.security.web.access.intercept.AuthorizationFilter@6637a365]
+2026-06-10 15:33:39.385  INFO 17604 --- [           main] o.s.b.a.e.web.EndpointLinksResolver      : Exposing 1 endpoint(s) beneath base path '/actuator'
+2026-06-10 15:33:39.422  INFO 17604 --- [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat started on port(s): 8084 (http) with context path ''
+2026-06-10 15:33:39.439  INFO 17604 --- [           main] c.a.n.p.a.s.c.ClientAuthPluginManager    : [ClientAuthPluginManager] Load ClientAuthService com.alibaba.nacos.client.auth.impl.NacosClientAuthServiceImpl success.
+2026-06-10 15:33:39.439  INFO 17604 --- [           main] c.a.n.p.a.s.c.ClientAuthPluginManager    : [ClientAuthPluginManager] Load ClientAuthService com.alibaba.nacos.client.auth.ram.RamClientAuthServiceImpl success.
+2026-06-10 15:33:39.590  INFO 17604 --- [           main] c.a.c.n.registry.NacosServiceRegistry    : nacos registry, DEFAULT_GROUP transaction-service 192.168.1.118:8084 register finished
+2026-06-10 15:33:39.654  INFO 17604 --- [           main] o.t.t.TransactionServiceApplication      : Started TransactionServiceApplication in 8.148 seconds (JVM running for 8.764)
+2026-06-10 15:33:39.672  INFO 17604 --- [           main] c.a.c.n.refresh.NacosContextRefresher    : [Nacos Config] Listening config: dataId=transaction-service.yml, group=DEFAULT_GROUP
+2026-06-10 15:35:32.191  INFO 17604 --- [nio-8084-exec-1] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-06-10 15:35:32.191  INFO 17604 --- [nio-8084-exec-1] o.s.web.servlet.DispatcherServlet        : Initializing Servlet 'dispatcherServlet'
+2026-06-10 15:35:32.192  INFO 17604 --- [nio-8084-exec-1] o.s.web.servlet.DispatcherServlet        : Completed initialization in 1 ms
+Hibernate: 
+    insert 
+    into
+        transaction
+        (account_id, amount, comments, reference_id, status, transaction_date, transaction_type) 
+    values
+        (?, ?, ?, ?, ?, ?, ?)
+Hibernate: 
+    insert 
+    into
+        transaction
+        (account_id, amount, comments, reference_id, status, transaction_date, transaction_type) 
+    values
+        (?, ?, ?, ?, ?, ?, ?)
+Hibernate: 
+    insert 
+    into
+        transaction
+        (account_id, amount, comments, reference_id, status, transaction_date, transaction_type) 
+    values
+        (?, ?, ?, ?, ?, ?, ?)
+Hibernate: 
+    insert 
+    into
+        transaction
+        (account_id, amount, comments, reference_id, status, transaction_date, transaction_type) 
+    values
+        (?, ?, ?, ?, ?, ?, ?)
+Hibernate: 
+    insert 
+    into
+        transaction
+        (account_id, amount, comments, reference_id, status, transaction_date, transaction_type) 
+    values
+        (?, ?, ?, ?, ?, ?, ?)
+Hibernate: 
+    insert 
+    into
+        transaction
+        (account_id, amount, comments, reference_id, status, transaction_date, transaction_type) 
+    values
+        (?, ?, ?, ?, ?, ?, ?)
+[48131.895s][warning][os,thread] Failed to start thread "Unknown thread" - _beginthreadex failed (EINVAL) for attributes: stacksize: default, flags: CREATE_SUSPENDED STACK_SIZE_PARAM_IS.
+[48131.896s][warning][os,thread] Failed to start the native thread for java.lang.Thread "nacos-grpc-client-executor-localhost-9610"
+#
+# A fatal error has been detected by the Java Runtime Environment:
+#
+#  EXCEPTION_ACCESS_VIOLATION (0xc0000005) at pc=0x00007fffaca3ead3, pid=17604, tid=14688
+#
+# JRE version: OpenJDK Runtime Environment Microsoft-11369865 (17.0.15+6) (build 17.0.15+6-LTS)
+# Java VM: OpenJDK 64-Bit Server VM Microsoft-11369865 (17.0.15+6-LTS, mixed mode, sharing, tiered, compressed oops, compressed class ptrs, g1 gc, windows-amd64)
+# Problematic frame:
+# V  [jvm.dll+0x38ead3]
+#
+# No core dump will be written. Minidumps are not enabled by default on client versions of Windows
+#
+# An error report file with more information is saved as:
+# C:\Users\Admin\IdeaProjects\Spring-Boot-Microservices-Banking-Application\hs_err_pid17604.log

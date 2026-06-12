@@ -14,9 +14,9 @@ public interface JournalEntryRepository extends JpaRepository<JournalEntry, Long
 
     List<JournalEntry> findByAccountId(String accountId);
 
-    /** 计算某账户的实时余额: SUM(DEBIT) - SUM(CREDIT) */
-    @Query("SELECT COALESCE(SUM(CASE WHEN j.direction = 'DEBIT' THEN j.amount ELSE 0 END), 0) - " +
-           "COALESCE(SUM(CASE WHEN j.direction = 'CREDIT' THEN j.amount ELSE 0 END), 0) " +
+    /** 计算某账户实时余额: SUM(CREDIT) - SUM(DEBIT) (负债视角) */
+    @Query("SELECT COALESCE(SUM(CASE WHEN j.direction = 'CREDIT' THEN j.amount ELSE 0 END), 0) - " +
+           "COALESCE(SUM(CASE WHEN j.direction = 'DEBIT' THEN j.amount ELSE 0 END), 0) " +
            "FROM JournalEntry j WHERE j.accountId = :accountId")
     BigDecimal getAccountBalance(@Param("accountId") String accountId);
 }

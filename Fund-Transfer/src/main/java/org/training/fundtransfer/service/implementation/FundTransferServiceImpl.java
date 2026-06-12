@@ -111,14 +111,14 @@ public class FundTransferServiceImpl implements FundTransferService {
                     Transaction.builder()
                             .accountId(fromAccount.getAccountNumber())
                             .transactionType("INTERNAL_TRANSFER")
-                            .direction("CREDIT")    // 资金转出 = 贷方
+                            .direction("DEBIT")     // 转出 = 银行负债减少
                             .amount(amount)
                             .description("转账至 " + toAccount.getAccountNumber())
                             .build(),
                     Transaction.builder()
                             .accountId(toAccount.getAccountNumber())
                             .transactionType("INTERNAL_TRANSFER")
-                            .direction("DEBIT")     // 资金转入 = 借方
+                            .direction("CREDIT")    // 转入 = 银行负债增加
                             .amount(amount)
                             .description("来自 " + fromAccount.getAccountNumber() + " 的转账")
                             .build());
