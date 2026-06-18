@@ -19,6 +19,12 @@ spring:
     host: localhost
     port: 6379
 
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: bank
+    password: bank123
+
   datasource:
     url: jdbc:mysql://localhost:3307/transaction_service
     username: root
