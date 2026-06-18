@@ -14,7 +14,6 @@ import org.training.account.service.model.dto.response.Response;
 import org.training.account.service.model.dto.external.TransactionResponse;
 import org.training.account.service.service.AccountService;
 
-import java.math.BigDecimal;
 import java.util.List;
 import java.util.Objects;
 

@@ -34,25 +34,19 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
- * 复式记账服务实现 — Redisson 分布式锁版本
+ * 复式记账服务实现（简化版）
  * <p>
- * 核心原则:
- * 1. 每笔业务 = 一个凭证(Transaction) + N 条分录(JournalEntry)
- * 2. 有借必有贷，借贷必相等
- * 3. 余额 = SUM(DEBIT) - SUM(CREDIT)，由分录计算，不直接修改
- * <p>
- * 并发控制:
- * - 取款: Redisson 分布式锁保护 "查余额 → 记账 → 提交" 全流程
- * - 转账: 多账户排序加锁(RedissonMultiLock)，防止死锁
- * - 存款: 无超扣风险，不加锁
- * <p>
- * 锁与事务的关系（分步实施锁）:
- * 外门方法(无事务) → 获取锁 → 调用代理的 @Transactional 方法 → 事务提交 → finally 释放锁
- * 保证锁释放时 DB 已提交，其他线程能读到最新余额。
+ * 设计原则:
+ * 1. 分录（journal_entry）是唯一真相源，余额从分录派生
+ * 2. 交易热路径只写分录，不做跨服务余额修改
+ * 3. 余额同步（recalculateBalance）在事务提交后执行，失败不影响交易
+ * 4. 并发安全靠 Redisson 分布式锁 + 锁内读 Account-Service 最新余额
+ * 5. 接口幂等靠 referenceId 唯一约束
  */
 @Slf4j
 @Service
@@ -64,10 +58,6 @@ public class TransactionServiceImpl implements TransactionService {
     private final AccountService accountService;
     private final DistributedLockService lockService;
 
-    /**
-     * 自注入代理，使 @Transactional 自调用能经过 AOP 代理
-     * 锁外层调用 → self.doXxx() → 事务生效
-     */
     @Lazy
     @Autowired
     private TransactionServiceImpl self;
@@ -79,18 +69,8 @@ public class TransactionServiceImpl implements TransactionService {
 
     // ==================== 公开 API ====================
 
-    /**
-     * 单笔记账（存款/取款）
-     * <p>
-     * 分步锁:
-     * 1. 加载账户信息（锁外）
-     * 2. 校验账户状态（锁外）
-     * 3. [取款] 获取 Redisson 分布式锁 → 查余额 → 记账 → 提交事务 → 释放锁
-     * 4. [存款] 直接记账，无需锁
-     */
     @Override
     public Response addTransaction(TransactionDto transactionDto) {
-        // Step 1: 加载账户（锁外，减少锁持有时间）
         ResponseEntity<Account> response = accountService.readByAccountNumber(transactionDto.getAccountId());
         if (Objects.isNull(response.getBody())) {
             throw new ResourceNotFound("Requested account not found on the server", GlobalErrorCode.NOT_FOUND);
@@ -100,35 +80,47 @@ public class TransactionServiceImpl implements TransactionService {
         boolean isWithdrawal = transactionDto.getTransactionType().equals(TransactionType.WITHDRAWAL.toString());
 
         if (isWithdrawal) {
-            // Step 2: 校验账户状态（锁外）
             if (!"ACTIVE".equals(account.getAccountStatus())) {
                 throw new AccountStatusException("account is inactive or closed");
             }
 
-            // Step 3: Redisson 分布式锁 → @Transactional 记账
             String lockKey = "withdraw:" + transactionDto.getAccountId();
             return lockService.executeWithLock(lockKey, 10, -1, () -> {
-                // 锁内: 查余额 → 记账 → 事务提交
-                return self.doBookkeeping(transactionDto);
+                // 锁内重读最新余额（Account-Service 单行读）
+                ResponseEntity<Account> freshResp = accountService.readByAccountNumber(transactionDto.getAccountId());
+                Account fresh = freshResp.getBody();
+                if (fresh == null || fresh.getAvailableBalance() == null
+                        || fresh.getAvailableBalance().compareTo(transactionDto.getAmount()) < 0) {
+                    throw new InsufficientBalance("Insufficient balance in the account");
+                }
+
+                // @Transactional 写分录，返回时事务已提交
+                Response resp = self.doBookkeeping(transactionDto);
+
+                // 事务已提交，分录已落库 → 安全同步余额
+                accountService.recalculateBalance(transactionDto.getAccountId());
+
+                return resp;
             });
         }
 
-        // Step 4: 存款 — 无超扣风险，直接记账
-        return self.doBookkeeping(transactionDto);
+        // 存款：无超扣风险，不锁
+        Response resp = self.doBookkeeping(transactionDto);
+        accountService.recalculateBalance(transactionDto.getAccountId());
+        return resp;
     }
 
-    /**
-     * 内部转账 — Fund-Transfer 调用
-     * <p>
-     * 多账户排序加锁（防死锁）:
-     * 1. 提取所有账户 ID，排序去重
-     * 2. RedissonMultiLock 一次性获取全部锁
-     * 3. 锁内执行 @Transactional 记账
-     * 4. finally 释放全部锁
-     */
     @Override
     public Response internalTransaction(List<TransactionDto> transactionDtos, String transactionReference) {
-        // 提取 + 排序账户 ID，保证所有并发路径以相同顺序获取锁
+        // 幂等快速检查（锁外）
+        Optional<Transaction> existing = transactionRepository.findByReferenceId(transactionReference);
+        if (existing.isPresent()) {
+            log.info("内部转账幂等命中(锁外): referenceId={}", transactionReference);
+            return Response.builder()
+                    .responseCode(ok)
+                    .message("Transaction completed successfully (idempotent)").build();
+        }
+
         List<String> accountIds = transactionDtos.stream()
                 .map(TransactionDto::getAccountId)
                 .distinct()
@@ -136,7 +128,27 @@ public class TransactionServiceImpl implements TransactionService {
                 .collect(Collectors.toList());
 
         return lockService.executeWithMultiLock(accountIds, 10, -1, () -> {
-            return self.doInternalTransfer(transactionDtos, transactionReference);
+            // 锁内检查所有 DEBIT 账户余额
+            for (TransactionDto dto : transactionDtos) {
+                if (dto.getDirection() == Direction.DEBIT) {
+                    ResponseEntity<Account> freshResp = accountService.readByAccountNumber(dto.getAccountId());
+                    Account fresh = freshResp.getBody();
+                    if (fresh == null || fresh.getAvailableBalance() == null
+                            || fresh.getAvailableBalance().compareTo(dto.getAmount()) < 0) {
+                        throw new InsufficientBalance("Insufficient balance for account: " + dto.getAccountId());
+                    }
+                }
+            }
+
+            // @Transactional 写分录，返回时事务已提交
+            Response resp = self.doInternalTransfer(transactionDtos, transactionReference);
+
+            // 事务已提交，安全同步所有账户余额
+            for (String id : accountIds) {
+                accountService.recalculateBalance(id);
+            }
+
+            return resp;
         });
     }
 
@@ -188,44 +200,44 @@ public class TransactionServiceImpl implements TransactionService {
         return balance != null ? balance : BigDecimal.ZERO;
     }
 
-    // ==================== @Transactional 门面（供 self 代理调用） ====================
+    // ==================== @Transactional 门面 ====================
 
     /**
-     * 单笔记账（存款/取款共用）
+     * 单笔记账（存款/取款共用）—— 只写分录，不做余额修改。
      * <p>
-     * 调用方必须先获取锁（取款场景），再通过代理调用本方法。
-     * 本方法内: 查余额 → 创建凭证 → 分录落库 → 校验借贷平衡 → 触发余额重算。
+     * 调用方在事务提交后负责调 recalculateBalance 同步余额到 Account-Service。
      */
     @Transactional
-    public Response doBookkeeping(TransactionDto transactionDto) {
-        boolean isWithdrawal = transactionDto.getTransactionType().equals(TransactionType.WITHDRAWAL.toString());
-
-        // 取款: 锁内再次校验余额（防御性编程）
-        if (isWithdrawal) {
-            checkSufficientBalance(transactionDto.getAccountId(), transactionDto.getAmount());
+    public Response doBookkeeping(TransactionDto dto) {
+        // 幂等检查
+        String referenceId = dto.getReferenceId();
+        if (referenceId != null && !referenceId.isEmpty()) {
+            Optional<Transaction> existing = transactionRepository.findByReferenceId(referenceId);
+            if (existing.isPresent()) {
+                log.info("记账幂等命中: referenceId={}, voucherNo={}", referenceId, existing.get().getVoucherNo());
+                return Response.builder()
+                        .responseCode(ok)
+                        .message("Transaction completed successfully (idempotent)").build();
+            }
+        } else {
+            referenceId = UUID.randomUUID().toString();
         }
 
-        // 创建凭证
         String voucherNo = generateVoucherNo();
         Transaction voucher = Transaction.builder()
                 .voucherNo(voucherNo)
-                .transactionType(TransactionType.valueOf(transactionDto.getTransactionType()))
-                .referenceId(UUID.randomUUID().toString())
+                .transactionType(TransactionType.valueOf(dto.getTransactionType()))
+                .referenceId(referenceId)
                 .status(TransactionStatus.COMPLETED)
                 .build();
         transactionRepository.save(voucher);
 
-        // 创建分录
-        List<JournalEntry> entries = buildEntriesForSingleTx(voucher.getId(), transactionDto);
+        List<JournalEntry> entries = buildEntriesForSingleTx(voucher.getId(), dto);
         journalEntryRepository.saveAll(entries);
 
-        // 校验借贷平衡
         validateBalance(voucher.getId());
 
-        log.info("凭证 {} 记账完成 | {} | 分录数={}", voucherNo, transactionDto.getTransactionType(), entries.size());
-
-        // 事务内触发余额重算（Account-Service 从分录实时计算，保证一致性）
-        accountService.recalculateBalance(transactionDto.getAccountId());
+        log.info("凭证 {} 记账完成 | {} | 分录数={}", voucherNo, dto.getTransactionType(), entries.size());
 
         return Response.builder()
                 .responseCode(ok)
@@ -233,13 +245,21 @@ public class TransactionServiceImpl implements TransactionService {
     }
 
     /**
-     * 内部转账记账
+     * 内部转账记账 —— 只写分录，不做余额修改。
      * <p>
-     * 调用方必须先获取多账户锁，再通过代理调用本方法。
+     * 调用方在事务提交后负责逐账户 recalculateBalance。
      */
     @Transactional
     public Response doInternalTransfer(List<TransactionDto> transactionDtos, String transactionReference) {
-        // 创建凭证
+        // 幂等检查（事务内最终屏障）
+        Optional<Transaction> existing = transactionRepository.findByReferenceId(transactionReference);
+        if (existing.isPresent()) {
+            log.info("内部转账幂等命中(事务内): referenceId={}", transactionReference);
+            return Response.builder()
+                    .responseCode(ok)
+                    .message("Transaction completed successfully (idempotent)").build();
+        }
+
         String voucherNo = generateVoucherNo();
         Transaction voucher = Transaction.builder()
                 .voucherNo(voucherNo)
@@ -249,7 +269,6 @@ public class TransactionServiceImpl implements TransactionService {
                 .build();
         transactionRepository.save(voucher);
 
-        // 创建分录
         List<JournalEntry> entries = new ArrayList<>();
         for (TransactionDto dto : transactionDtos) {
             entries.add(JournalEntry.builder()
@@ -262,17 +281,9 @@ public class TransactionServiceImpl implements TransactionService {
         }
         journalEntryRepository.saveAll(entries);
 
-        // 校验借贷平衡
         validateBalance(voucher.getId());
 
         log.info("凭证 {} 内部转账完成 | reference={} | 分录数={}", voucherNo, transactionReference, entries.size());
-
-        // 触发相关账户余额重算
-        List<String> accountIds = transactionDtos.stream()
-                .map(TransactionDto::getAccountId)
-                .distinct()
-                .collect(Collectors.toList());
-        accountIds.forEach(accountService::recalculateBalance);
 
         return Response.builder()
                 .responseCode(ok)
@@ -281,25 +292,14 @@ public class TransactionServiceImpl implements TransactionService {
 
     // ==================== 私有方法 ====================
 
-    /** 余额不足校验 */
-    private void checkSufficientBalance(String accountId, BigDecimal amount) {
-        BigDecimal currentBalance = journalEntryRepository.getAccountBalance(accountId);
-        if (currentBalance == null || currentBalance.compareTo(amount) < 0) {
-            throw new InsufficientBalance("Insufficient balance in the account");
-        }
-    }
-
-    /** 单笔记账的分录构建: 客户账户 + 内部现金科目 */
     private List<JournalEntry> buildEntriesForSingleTx(Long voucherId, TransactionDto dto) {
-        String cashAccount = "9999999999999"; // 内部现金科目，代表银行的现金池
+        String cashAccount = "9999999999999";
         List<JournalEntry> entries = new ArrayList<>();
 
         if (TransactionType.DEPOSIT.toString().equals(dto.getTransactionType())) {
-            // 存款: 银行负债增加(CREDIT)，对应现金资产增加(DEBIT)
             entries.add(buildEntry(voucherId, dto.getAccountId(), Direction.CREDIT, dto.getAmount(), dto.getDescription()));
             entries.add(buildEntry(voucherId, cashAccount, Direction.DEBIT, dto.getAmount(), "银行现金入库"));
         } else if (TransactionType.WITHDRAWAL.toString().equals(dto.getTransactionType())) {
-            // 取款: 银行负债减少(DEBIT)，对应现金资产减少(CREDIT)
             entries.add(buildEntry(voucherId, dto.getAccountId(), Direction.DEBIT, dto.getAmount(), dto.getDescription()));
             entries.add(buildEntry(voucherId, cashAccount, Direction.CREDIT, dto.getAmount(), "银行现金出库"));
         }
@@ -322,7 +322,6 @@ public class TransactionServiceImpl implements TransactionService {
         return "TX" + date + String.format("%06d", count);
     }
 
-    /** 核心校验: SUM(DEBIT) == SUM(CREDIT) */
     private void validateBalance(Long transactionId) {
         List<JournalEntry> entries = journalEntryRepository.findByTransactionId(transactionId);
         BigDecimal debitSum = entries.stream()

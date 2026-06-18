@@ -111,6 +111,9 @@ public class AccountServiceImpl implements AccountService {
     /**
      * 从 transaction-service 的分录表重新计算余额
      * 替代了旧的 updateBalance()，余额不再被外部直接修改
+     * <p>
+     * 注意: 此方法走 SUM(journal_entry)，O(n)，仅用于审计/对账。
+     * 交易热路径请用 adjustBalance。
      */
     @Override
     public Response recalculateBalance(String accountNumber) {

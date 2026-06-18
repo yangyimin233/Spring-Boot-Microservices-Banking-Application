@@ -45,6 +45,8 @@ public interface AccountService {
 
     /**
      * 从分录表重新计算账户余额（替代直接设值的 updateBalance）
+     * <p>
+     * 内部走 SUM(journal_entry)，用于审计/对账，不在交易热路径上使用。
      */
     Response recalculateBalance(String accountNumber);
 

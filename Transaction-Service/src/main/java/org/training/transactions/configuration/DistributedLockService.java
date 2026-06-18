@@ -4,7 +4,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
-import org.redisson.api.RedissonMultiLock;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -129,7 +128,7 @@ public class DistributedLockService {
 
         RLock multiLock = locks.size() == 1
                 ? locks.get(0)
-                : new RedissonMultiLock(locks.toArray(new RLock[0]));
+                : redissonClient.getMultiLock(locks.toArray(new RLock[0]));
 
         boolean acquired = false;
         try {

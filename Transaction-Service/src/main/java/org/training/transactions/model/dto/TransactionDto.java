@@ -28,4 +28,7 @@ public class TransactionDto {
 
     /** 摘要说明 */
     private String description;
+
+    /** 幂等键（可选），由调用方传入。同一 referenceId 的重复请求直接返回已有结果 */
+    private String referenceId;
 }

@@ -8,7 +8,6 @@ import org.springframework.stereotype.Service;
 import org.training.fundtransfer.annotation.ServiceSwitch;
 import org.training.fundtransfer.exception.AccountUpdateException;
 import org.training.fundtransfer.exception.GlobalErrorCode;
-import org.training.fundtransfer.exception.InsufficientBalance;
 import org.training.fundtransfer.exception.ResourceNotFound;
 import org.training.fundtransfer.external.AccountService;
 import org.training.fundtransfer.external.TransactionService;
@@ -63,10 +62,7 @@ public class FundTransferServiceImpl implements FundTransferService {
             log.error("account status is pending or inactive");
             throw new AccountUpdateException("account status is not active", GlobalErrorCode.NOT_ACCEPTABLE);
         }
-        if (fromAccount.getAvailableBalance().compareTo(fundTransferRequest.getAmount()) < 0) {
-            log.error("required amount to transfer is not available");
-            throw new InsufficientBalance("requested amount is not available", GlobalErrorCode.NOT_ACCEPTABLE);
-        }
+        // 余额检查已移至 Transaction-Service 锁内，此处仅做账户存在性和状态校验
 
         // Load and validate toAccount (Feign → account-service, Sentinel 自动保护)
         response = accountService.readByAccountNumber(fundTransferRequest.getToAccount());
@@ -124,12 +120,8 @@ public class FundTransferServiceImpl implements FundTransferService {
                             .build());
 
             transactionService.makeInternalTransactions(entries, transactionReference);
+            // 余额同步已由 Transaction-Service 在事务提交后处理
             log.info("分录已创建: reference={}, DEBIT={} = CREDIT={}", transactionReference, amount, amount);
-
-            // Step 2: 从分录表重算并刷新余额缓存
-            accountService.recalculateBalance(fromAccount.getAccountNumber());
-            accountService.recalculateBalance(toAccount.getAccountNumber());
-            log.info("余额已重算: from={}, to={}", fromAccount.getAccountNumber(), toAccount.getAccountNumber());
 
             return transactionReference;
 

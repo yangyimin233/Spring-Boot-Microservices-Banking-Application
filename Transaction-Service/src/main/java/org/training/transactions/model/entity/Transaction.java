@@ -36,7 +36,8 @@ public class Transaction {
     @Column(nullable = false)
     private TransactionType transactionType;
 
-    /** 全局唯一业务 ID，关联跨服务调用链 */
+    /** 全局唯一业务 ID，关联跨服务调用链，兼做幂等键 */
+    @Column(nullable = false, unique = true)
     private String referenceId;
 
     @Enumerated(EnumType.STRING)
