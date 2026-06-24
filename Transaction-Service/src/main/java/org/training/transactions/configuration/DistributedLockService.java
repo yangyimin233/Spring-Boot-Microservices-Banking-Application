@@ -148,12 +148,10 @@ public class DistributedLockService {
             return supplier.get();
         } finally {
             try {
-                if (multiLock.isHeldByCurrentThread()) {
-                    multiLock.unlock();
-                    log.debug("多账户锁释放成功: keys={}, thread={}", keys, Thread.currentThread().getName());
-                }
+                multiLock.unlock();
+                log.debug("多账户锁释放成功: keys={}, thread={}", keys, Thread.currentThread().getName());
             } catch (Exception e) {
-                log.warn("多账户锁释放异常: keys={}", keys, e);
+                log.warn("多账户锁释放异常(锁可能已过期): keys={}", keys);
             }
         }
     }

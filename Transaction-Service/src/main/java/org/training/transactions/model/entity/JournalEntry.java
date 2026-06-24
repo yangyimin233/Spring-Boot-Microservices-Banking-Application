@@ -50,6 +50,10 @@ public class JournalEntry {
     @Column(nullable = false)
     private BigDecimal amount;
 
+    /** 该笔分录后账户的余额快照（增量追加，用于 O(1) 查余额） */
+    @Column(precision = 19, scale = 4)
+    private BigDecimal runningBalance;
+
     /** 分录摘要 */
     private String description;
 }

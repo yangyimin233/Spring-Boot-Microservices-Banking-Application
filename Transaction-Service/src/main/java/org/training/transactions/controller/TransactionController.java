@@ -16,9 +16,13 @@ import org.training.transactions.model.dto.UserDto;
 import org.training.transactions.model.external.Account;
 import org.training.transactions.model.response.Response;
 import org.training.transactions.model.response.TransactionRequest;
+import org.training.transactions.repository.JournalEntryRepository;
 import org.training.transactions.service.TransactionService;
 
+import java.math.BigDecimal;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 @Slf4j
@@ -30,6 +34,7 @@ public class TransactionController {
     private final TransactionService transactionService;
     private final AccountService accountService;
     private final UserService userService;
+    private final JournalEntryRepository journalEntryRepository;
 
     @PostMapping
     public ResponseEntity<Response> addTransactions(@RequestBody TransactionDto transactionDto) {
@@ -56,10 +61,41 @@ public class TransactionController {
         return new ResponseEntity<>(transactionService.getTransactionByTransactionReference(referenceId), HttpStatus.OK);
     }
 
-    /** 内部用: 查询某账户的实时余额（从分录表计算） */
+    /** 内部用: 查询某账户的实时余额（优先 running_balance O(1)） */
     @GetMapping("/internal/balance")
-    public ResponseEntity<java.math.BigDecimal> getAccountBalance(@RequestParam String accountId) {
+    public ResponseEntity<BigDecimal> getAccountBalance(@RequestParam String accountId) {
         return ResponseEntity.ok(transactionService.getAccountBalance(accountId));
+    }
+
+    /** 性能对比: running_balance(O1) vs SUM(On) */
+    @GetMapping("/internal/balance/benchmark")
+    public ResponseEntity<Map<String, Object>> benchmarkBalance(@RequestParam String accountId) {
+        Map<String, Object> result = new LinkedHashMap<>();
+
+        // O(1): running_balance
+        long t1 = System.nanoTime();
+        BigDecimal rb = transactionService.getAccountBalance(accountId);
+        long t2 = System.nanoTime();
+
+        // O(n): SUM
+        long t3 = System.nanoTime();
+        BigDecimal sum = journalEntryRepository.getAccountBalance(accountId);
+        long t4 = System.nanoTime();
+
+        long rbNs = t2 - t1;
+        long sumNs = t4 - t3;
+
+        result.put("accountId", accountId);
+        result.put("runningBalance_value", rb);
+        result.put("runningBalance_ns", rbNs);
+        result.put("runningBalance_ms", String.format("%.3f", rbNs / 1_000_000.0));
+        result.put("sum_value", sum);
+        result.put("sum_ns", sumNs);
+        result.put("sum_ms", String.format("%.3f", sumNs / 1_000_000.0));
+        result.put("speedup", String.format("%.1fx", (double) sumNs / Math.max(rbNs, 1)));
+        result.put("match", rb != null && rb.compareTo(sum) == 0);
+
+        return ResponseEntity.ok(result);
     }
 
     // Helper

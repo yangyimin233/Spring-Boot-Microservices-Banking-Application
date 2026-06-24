@@ -31,20 +31,24 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
- * 复式记账服务实现 — RabbitMQ 异步余额同步
+ * 复式记账服务实现 — running_balance 增量追加 + RabbitMQ 异步余额同步
  * <p>
  * 设计原则:
  * 1. 分录（journal_entry）是唯一真相源，余额从分录派生
- * 2. 余额检查直接读 journal_entry SUM（永远最新，无脏读窗口）
- * 3. 事务提交后发 RabbitMQ 消息异步同步余额到 Account-Service
- * 4. MQ 消费失敗由 RabbitMQ 自动重试 + DLQ/DLX 兜底
+ * 2. running_balance 增量追加: 每笔分录写时带上该账户当时的余额快照
+ *    — O(1) 查余额（读最后一条分录）
+ *    — O(n) SUM 保留用于对比测试
+ * 3. 余额检查: 优先读 running_balance，旧数据无 running_balance 时回退 SUM
+ * 4. 事务提交后发 RabbitMQ 异步同步余额到 Account-Service
  * 5. 并发安全靠 Redisson 锁，幂等靠 referenceId UK
  */
 @Slf4j
@@ -84,16 +88,14 @@ public class TransactionServiceImpl implements TransactionService {
             }
 
             String lockKey = "withdraw:" + transactionDto.getAccountId();
-            return lockService.executeWithLock(lockKey, 10, -1, () -> {
-                // 锁内读分录余额（永远最新）
-                BigDecimal balance = journalEntryRepository.getAccountBalance(transactionDto.getAccountId());
+            return lockService.executeWithLock(lockKey, 10, 30, () -> {
+                // 锁内读余额（优先 running_balance，旧数据回退 SUM）
+                BigDecimal balance = getBalanceForCheck(transactionDto.getAccountId());
                 if (balance == null || balance.compareTo(transactionDto.getAmount()) < 0) {
                     throw new InsufficientBalance("Insufficient balance in the account");
                 }
 
-                Response resp = self.doBookkeeping(transactionDto); // @Transactional 提交
-
-                // 事务已提交 → 发 MQ 异步同步余额
+                Response resp = self.doBookkeeping(transactionDto);
                 syncProducer.sendBalanceSync(transactionDto.getAccountId());
                 return resp;
             });
@@ -120,23 +122,19 @@ public class TransactionServiceImpl implements TransactionService {
                 .sorted()
                 .collect(Collectors.toList());
 
-        Response resp = lockService.executeWithMultiLock(accountIds, 10, -1, () -> {
-            // 锁内读分录余额，检查所有 DEBIT 账户
+        Response resp = lockService.executeWithMultiLock(accountIds, 10, 30, () -> {
             for (TransactionDto dto : transactionDtos) {
                 if (dto.getDirection() == Direction.DEBIT) {
-                    BigDecimal balance = journalEntryRepository.getAccountBalance(dto.getAccountId());
+                    BigDecimal balance = getBalanceForCheck(dto.getAccountId());
                     if (balance == null || balance.compareTo(dto.getAmount()) < 0) {
                         throw new InsufficientBalance("Insufficient balance for account: " + dto.getAccountId());
                     }
                 }
             }
-
-            return self.doInternalTransfer(transactionDtos, transactionReference); // @Transactional 提交
+            return self.doInternalTransfer(transactionDtos, transactionReference);
         });
 
-        // 事务已提交 → 逐账户发 MQ
         accountIds.forEach(syncProducer::sendBalanceSync);
-
         return resp;
     }
 
@@ -184,17 +182,20 @@ public class TransactionServiceImpl implements TransactionService {
 
     @Override
     public BigDecimal getAccountBalance(String accountId) {
-        BigDecimal balance = journalEntryRepository.getAccountBalance(accountId);
-        return balance != null ? balance : BigDecimal.ZERO;
+        // O(1) 优先: 读最后一条分录的 running_balance
+        BigDecimal runningBalance = journalEntryRepository.findTopByAccountIdOrderByIdDesc(accountId)
+                .map(JournalEntry::getRunningBalance)
+                .orElse(null);
+        if (runningBalance != null) {
+            return runningBalance;
+        }
+        // 旧数据回退 O(n) SUM
+        BigDecimal sum = journalEntryRepository.getAccountBalance(accountId);
+        return sum != null ? sum : BigDecimal.ZERO;
     }
 
     // ==================== @Transactional 门面 ====================
 
-    /**
-     * 单笔记账 — 只写分录，不调外部服务。
-     * <p>
-     * 调用方在事务提交后通过 MQ 异步触发余额同步。
-     */
     @Transactional
     public Response doBookkeeping(TransactionDto dto) {
         String referenceId = dto.getReferenceId();
@@ -219,7 +220,8 @@ public class TransactionServiceImpl implements TransactionService {
                 .build();
         transactionRepository.save(voucher);
 
-        List<JournalEntry> entries = buildEntriesForSingleTx(voucher.getId(), dto);
+        Map<String, BigDecimal> rbCache = new HashMap<>();
+        List<JournalEntry> entries = buildEntriesForSingleTx(voucher.getId(), dto, rbCache);
         journalEntryRepository.saveAll(entries);
 
         validateBalance(voucher.getId());
@@ -231,9 +233,6 @@ public class TransactionServiceImpl implements TransactionService {
                 .message("Transaction completed successfully").build();
     }
 
-    /**
-     * 内部转账 — 只写分录，不调外部服务。
-     */
     @Transactional
     public Response doInternalTransfer(List<TransactionDto> transactionDtos, String transactionReference) {
         Optional<Transaction> existing = transactionRepository.findByReferenceId(transactionReference);
@@ -253,15 +252,10 @@ public class TransactionServiceImpl implements TransactionService {
                 .build();
         transactionRepository.save(voucher);
 
+        Map<String, BigDecimal> rbCache = new HashMap<>();
         List<JournalEntry> entries = new ArrayList<>();
         for (TransactionDto dto : transactionDtos) {
-            entries.add(JournalEntry.builder()
-                    .transactionId(voucher.getId())
-                    .accountId(dto.getAccountId())
-                    .direction(dto.getDirection() != null ? dto.getDirection() : Direction.DEBIT)
-                    .amount(dto.getAmount())
-                    .description(dto.getDescription())
-                    .build());
+            entries.add(buildEntry(voucher.getId(), dto, rbCache));
         }
         journalEntryRepository.saveAll(entries);
 
@@ -276,26 +270,89 @@ public class TransactionServiceImpl implements TransactionService {
 
     // ==================== 私有方法 ====================
 
-    private List<JournalEntry> buildEntriesForSingleTx(Long voucherId, TransactionDto dto) {
+    /** 余额检查 — 优先 running_balance，旧数据无 running_balance 时回退 SUM */
+    private BigDecimal getBalanceForCheck(String accountId) {
+        BigDecimal rb = journalEntryRepository.findTopByAccountIdOrderByIdDesc(accountId)
+                .map(JournalEntry::getRunningBalance)
+                .orElse(null);
+        if (rb != null) {
+            return rb;
+        }
+        BigDecimal sum = journalEntryRepository.getAccountBalance(accountId);
+        return sum != null ? sum : BigDecimal.ZERO;
+    }
+
+    /**
+     * 计算 running_balance — 带本地缓存，同批次同账户多次写入时复用。
+     * <p>
+     * 1. 先查缓存（同事务内已写入的同账户分录）
+     * 2. 缓存无 → 读 DB: findTopByAccountIdOrderByIdDesc → runningBalance
+     * 3. DB 无 runningBalance（旧数据）→ 回退 SUM
+     * 4. 计算新余额: CREDIT 加, DEBIT 减
+     * 5. 更新缓存
+     */
+    private BigDecimal nextRunningBalance(String accountId, Direction dir, BigDecimal amount,
+                                          Map<String, BigDecimal> cache) {
+        BigDecimal lastBalance = cache.get(accountId);
+        if (lastBalance == null) {
+            lastBalance = journalEntryRepository.findTopByAccountIdOrderByIdDesc(accountId)
+                    .map(JournalEntry::getRunningBalance)
+                    .orElse(null);
+            if (lastBalance == null) {
+                // 旧数据无 running_balance → 回退 SUM
+                lastBalance = journalEntryRepository.getAccountBalance(accountId);
+                if (lastBalance == null) {
+                    lastBalance = BigDecimal.ZERO;
+                }
+            }
+        }
+
+        BigDecimal newBalance;
+        if (dir == Direction.CREDIT) {
+            newBalance = lastBalance.add(amount);
+        } else {
+            newBalance = lastBalance.subtract(amount);
+        }
+
+        cache.put(accountId, newBalance);
+        return newBalance;
+    }
+
+    private List<JournalEntry> buildEntriesForSingleTx(Long voucherId, TransactionDto dto,
+                                                        Map<String, BigDecimal> rbCache) {
         String cashAccount = "9999999999999";
         List<JournalEntry> entries = new ArrayList<>();
 
         if (TransactionType.DEPOSIT.toString().equals(dto.getTransactionType())) {
-            entries.add(buildEntry(voucherId, dto.getAccountId(), Direction.CREDIT, dto.getAmount(), dto.getDescription()));
-            entries.add(buildEntry(voucherId, cashAccount, Direction.DEBIT, dto.getAmount(), "银行现金入库"));
+            entries.add(buildEntry(voucherId, dto.getAccountId(), Direction.CREDIT,
+                    dto.getAmount(), dto.getDescription(), rbCache));
+            entries.add(buildEntry(voucherId, cashAccount, Direction.DEBIT, dto.getAmount(),
+                    "银行现金入库", rbCache));
         } else if (TransactionType.WITHDRAWAL.toString().equals(dto.getTransactionType())) {
-            entries.add(buildEntry(voucherId, dto.getAccountId(), Direction.DEBIT, dto.getAmount(), dto.getDescription()));
-            entries.add(buildEntry(voucherId, cashAccount, Direction.CREDIT, dto.getAmount(), "银行现金出库"));
+            entries.add(buildEntry(voucherId, dto.getAccountId(), Direction.DEBIT,
+                    dto.getAmount(), dto.getDescription(), rbCache));
+            entries.add(buildEntry(voucherId, cashAccount, Direction.CREDIT, dto.getAmount(),
+                    "银行现金出库", rbCache));
         }
         return entries;
     }
 
-    private JournalEntry buildEntry(Long voucherId, String accountId, Direction dir, BigDecimal amount, String desc) {
+    /** 用 DTO 构建分录 */
+    private JournalEntry buildEntry(Long voucherId, TransactionDto dto, Map<String, BigDecimal> rbCache) {
+        Direction dir = dto.getDirection() != null ? dto.getDirection() : Direction.DEBIT;
+        return buildEntry(voucherId, dto.getAccountId(), dir, dto.getAmount(), dto.getDescription(), rbCache);
+    }
+
+    /** 构建单条分录，含 running_balance */
+    private JournalEntry buildEntry(Long voucherId, String accountId, Direction dir, BigDecimal amount,
+                                     String desc, Map<String, BigDecimal> rbCache) {
+        BigDecimal runningBalance = nextRunningBalance(accountId, dir, amount, rbCache);
         return JournalEntry.builder()
                 .transactionId(voucherId)
                 .accountId(accountId)
                 .direction(dir)
                 .amount(amount)
+                .runningBalance(runningBalance)
                 .description(desc)
                 .build();
     }
