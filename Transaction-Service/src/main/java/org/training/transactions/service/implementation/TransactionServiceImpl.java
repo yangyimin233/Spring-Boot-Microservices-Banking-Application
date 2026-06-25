@@ -19,10 +19,12 @@ import org.training.transactions.model.Direction;
 import org.training.transactions.model.TransactionStatus;
 import org.training.transactions.model.TransactionType;
 import org.training.transactions.model.dto.TransactionDto;
+import org.training.transactions.model.entity.AccountBalance;
 import org.training.transactions.model.entity.JournalEntry;
 import org.training.transactions.model.entity.Transaction;
 import org.training.transactions.model.response.Response;
 import org.training.transactions.model.response.TransactionRequest;
+import org.training.transactions.repository.AccountBalanceRepository;
 import org.training.transactions.repository.JournalEntryRepository;
 import org.training.transactions.repository.TransactionRepository;
 import org.training.transactions.service.TransactionService;
@@ -37,27 +39,28 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * 复式记账服务实现 — running_balance 增量追加 + RabbitMQ 异步余额同步
+ * 复式记账服务实现 — 双层锁防护
  * <p>
- * 设计原则:
- * 1. 分录（journal_entry）是唯一真相源，余额从分录派生
- * 2. running_balance 增量追加: 每笔分录写时带上该账户当时的余额快照
- *    — O(1) 查余额（读最后一条分录）
- *    — O(n) SUM 保留用于对比测试
- * 3. 余额检查: 优先读 running_balance，旧数据无 running_balance 时回退 SUM
- * 4. 事务提交后发 RabbitMQ 异步同步余额到 Account-Service
- * 5. 并发安全靠 Redisson 锁，幂等靠 referenceId UK
+ * 外层: Redisson 分布式锁（减少无效 DB 竞争）
+ * 内层: FOR UPDATE 行锁（InnoDB 绝对串行保证，与分录同库同事务原子提交）
+ * <p>
+ * account_balance 表跟分录在同一个本地事务里更新，余额永远精准。
+ * Account-Service 的 availableBalance 降级为展示缓存，MQ 异步刷新。
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class TransactionServiceImpl implements TransactionService {
 
+    private static final String CASH_ACCOUNT = "9999999999999";
+
     private final TransactionRepository transactionRepository;
     private final JournalEntryRepository journalEntryRepository;
+    private final AccountBalanceRepository accountBalanceRepository;
     private final AccountService accountService;
     private final DistributedLockService lockService;
     private final BalanceSyncProducer syncProducer;
@@ -89,13 +92,7 @@ public class TransactionServiceImpl implements TransactionService {
 
             String lockKey = "withdraw:" + transactionDto.getAccountId();
             return lockService.executeWithLock(lockKey, 10, 30, () -> {
-                // 锁内读余额（优先 running_balance，旧数据回退 SUM）
-                BigDecimal balance = getBalanceForCheck(transactionDto.getAccountId());
-                if (balance == null || balance.compareTo(transactionDto.getAmount()) < 0) {
-                    throw new InsufficientBalance("Insufficient balance in the account");
-                }
-
-                Response resp = self.doBookkeeping(transactionDto);
+                Response resp = self.doBookkeeping(transactionDto); // @Transactional
                 syncProducer.sendBalanceSync(transactionDto.getAccountId());
                 return resp;
             });
@@ -122,17 +119,8 @@ public class TransactionServiceImpl implements TransactionService {
                 .sorted()
                 .collect(Collectors.toList());
 
-        Response resp = lockService.executeWithMultiLock(accountIds, 10, 30, () -> {
-            for (TransactionDto dto : transactionDtos) {
-                if (dto.getDirection() == Direction.DEBIT) {
-                    BigDecimal balance = getBalanceForCheck(dto.getAccountId());
-                    if (balance == null || balance.compareTo(dto.getAmount()) < 0) {
-                        throw new InsufficientBalance("Insufficient balance for account: " + dto.getAccountId());
-                    }
-                }
-            }
-            return self.doInternalTransfer(transactionDtos, transactionReference);
-        });
+        Response resp = lockService.executeWithMultiLock(accountIds, 10, 30, () ->
+                self.doInternalTransfer(transactionDtos, transactionReference));
 
         accountIds.forEach(syncProducer::sendBalanceSync);
         return resp;
@@ -141,76 +129,61 @@ public class TransactionServiceImpl implements TransactionService {
     @Override
     public List<TransactionRequest> getTransaction(String accountId) {
         return journalEntryRepository.findByAccountId(accountId)
-                .stream().map(entry -> {
-                    Transaction voucher = transactionRepository.findById(entry.getTransactionId()).orElse(null);
-                    TransactionRequest req = new TransactionRequest();
-                    req.setAccountId(entry.getAccountId());
-                    req.setAmount(entry.getAmount());
-                    req.setDirection(entry.getDirection().toString());
-                    req.setComments(entry.getDescription());
-                    if (voucher != null) {
-                        req.setVoucherNo(voucher.getVoucherNo());
-                        req.setReferenceId(voucher.getReferenceId());
-                        req.setTransactionType(voucher.getTransactionType().toString());
-                        req.setTransactionStatus(voucher.getStatus().toString());
-                        req.setLocalDateTime(voucher.getCreatedAt());
-                    }
-                    return req;
-                }).collect(Collectors.toList());
+                .stream().map(entry -> toTransactionRequest(entry)).collect(Collectors.toList());
     }
 
     @Override
     public List<TransactionRequest> getTransactionByTransactionReference(String transactionReference) {
         Transaction voucher = transactionRepository.findTransactionByReferenceId(transactionReference)
                 .orElseThrow(() -> new ResourceNotFound("Transaction not found", GlobalErrorCode.NOT_FOUND));
-
         return journalEntryRepository.findByTransactionId(voucher.getId())
-                .stream().map(entry -> {
-                    TransactionRequest req = new TransactionRequest();
-                    req.setAccountId(entry.getAccountId());
-                    req.setAmount(entry.getAmount());
-                    req.setDirection(entry.getDirection().toString());
-                    req.setComments(entry.getDescription());
-                    req.setVoucherNo(voucher.getVoucherNo());
-                    req.setReferenceId(voucher.getReferenceId());
-                    req.setTransactionType(voucher.getTransactionType().toString());
-                    req.setTransactionStatus(voucher.getStatus().toString());
-                    req.setLocalDateTime(voucher.getCreatedAt());
-                    return req;
-                }).collect(Collectors.toList());
+                .stream().map(this::toTransactionRequest).collect(Collectors.toList());
     }
 
     @Override
     public BigDecimal getAccountBalance(String accountId) {
-        // O(1) 优先: 读最后一条分录的 running_balance
-        BigDecimal runningBalance = journalEntryRepository.findTopByAccountIdOrderByIdDesc(accountId)
-                .map(JournalEntry::getRunningBalance)
-                .orElse(null);
-        if (runningBalance != null) {
-            return runningBalance;
-        }
-        // 旧数据回退 O(n) SUM
-        BigDecimal sum = journalEntryRepository.getAccountBalance(accountId);
-        return sum != null ? sum : BigDecimal.ZERO;
+        return accountBalanceRepository.findByAccountId(accountId)
+                .map(AccountBalance::getBalance)
+                .orElseGet(() -> {
+                    BigDecimal sum = journalEntryRepository.getAccountBalance(accountId);
+                    return sum != null ? sum : BigDecimal.ZERO;
+                });
     }
 
     // ==================== @Transactional 门面 ====================
 
+    /**
+     * 单笔记账 — FOR UPDATE 锁余额 + 写分录，同事务原子提交。
+     */
     @Transactional
     public Response doBookkeeping(TransactionDto dto) {
-        String referenceId = dto.getReferenceId();
-        if (referenceId != null && !referenceId.isEmpty()) {
-            Optional<Transaction> existing = transactionRepository.findByReferenceId(referenceId);
-            if (existing.isPresent()) {
-                log.info("记账幂等命中: referenceId={}, voucherNo={}", referenceId, existing.get().getVoucherNo());
-                return Response.builder()
-                        .responseCode(ok)
-                        .message("Transaction completed successfully (idempotent)").build();
-            }
-        } else {
-            referenceId = UUID.randomUUID().toString();
+        String referenceId = resolveReferenceId(dto);
+        Optional<Transaction> existing = checkIdempotent(referenceId);
+        if (existing.isPresent()) {
+            return idempotentResponse();
         }
 
+        boolean isDeposit = TransactionType.DEPOSIT.toString().equals(dto.getTransactionType());
+        String accountId = dto.getAccountId();
+
+        // FOR UPDATE 锁住客户账户 + 现金账户的行
+        AccountBalance customerBal = resolveBalanceForUpdate(accountId);
+        AccountBalance cashBal = resolveBalanceForUpdate(CASH_ACCOUNT);
+
+        // 余额检查（DEBIT 扣款时才需要）
+        if (!isDeposit && customerBal.getBalance().compareTo(dto.getAmount()) < 0) {
+            throw new InsufficientBalance("Insufficient balance in the account");
+        }
+
+        // 计算新余额
+        BigDecimal newCustomerBal = isDeposit
+                ? customerBal.getBalance().add(dto.getAmount())
+                : customerBal.getBalance().subtract(dto.getAmount());
+        BigDecimal newCashBal = isDeposit
+                ? cashBal.getBalance().add(dto.getAmount())
+                : cashBal.getBalance().subtract(dto.getAmount());
+
+        // 创建凭证
         String voucherNo = generateVoucherNo();
         Transaction voucher = Transaction.builder()
                 .voucherNo(voucherNo)
@@ -220,29 +193,72 @@ public class TransactionServiceImpl implements TransactionService {
                 .build();
         transactionRepository.save(voucher);
 
-        Map<String, BigDecimal> rbCache = new HashMap<>();
-        List<JournalEntry> entries = buildEntriesForSingleTx(voucher.getId(), dto, rbCache);
+        // 创建分录（含 running_balance）
+        List<JournalEntry> entries = new ArrayList<>();
+        Direction customerDir = isDeposit ? Direction.CREDIT : Direction.DEBIT;
+        Direction cashDir = isDeposit ? Direction.DEBIT : Direction.CREDIT;
+        entries.add(entry(voucher.getId(), accountId, customerDir, dto.getAmount(),
+                dto.getDescription(), newCustomerBal));
+        entries.add(entry(voucher.getId(), CASH_ACCOUNT, cashDir, dto.getAmount(),
+                isDeposit ? "银行现金入库" : "银行现金出库", newCashBal));
         journalEntryRepository.saveAll(entries);
+
+        // 持久化余额
+        customerBal.setBalance(newCustomerBal);
+        cashBal.setBalance(newCashBal);
 
         validateBalance(voucher.getId());
 
-        log.info("凭证 {} 记账完成 | {} | 分录数={}", voucherNo, dto.getTransactionType(), entries.size());
-
-        return Response.builder()
-                .responseCode(ok)
-                .message("Transaction completed successfully").build();
+        log.info("凭证 {} 记账完成 | {} | 余额={}", voucherNo, dto.getTransactionType(), newCustomerBal);
+        return Response.builder().responseCode(ok).message("Transaction completed successfully").build();
     }
 
+    /**
+     * 内部转账 — FOR UPDATE 锁所有账户余额 + 写分录，同事务原子提交。
+     */
     @Transactional
     public Response doInternalTransfer(List<TransactionDto> transactionDtos, String transactionReference) {
-        Optional<Transaction> existing = transactionRepository.findByReferenceId(transactionReference);
+        Optional<Transaction> existing = checkIdempotent(transactionReference);
         if (existing.isPresent()) {
-            log.info("内部转账幂等命中(事务内): referenceId={}", transactionReference);
-            return Response.builder()
-                    .responseCode(ok)
-                    .message("Transaction completed successfully (idempotent)").build();
+            return idempotentResponse();
         }
 
+        List<String> accountIds = transactionDtos.stream()
+                .map(TransactionDto::getAccountId)
+                .distinct()
+                .sorted()
+                .collect(Collectors.toList());
+
+        // FOR UPDATE 锁所有涉及账户
+        List<AccountBalance> balanceRows = accountBalanceRepository.findByAccountIdsForUpdate(accountIds);
+        Map<String, AccountBalance> balanceMap = balanceRows.stream()
+                .collect(Collectors.toMap(AccountBalance::getAccountId, Function.identity()));
+
+        // 确保所有账户都有 balance 行（新账户处理）
+        for (String id : accountIds) {
+            balanceMap.putIfAbsent(id, resolveBalanceForUpdate(id));
+        }
+
+        // 检查所有 DEBIT 账户余额
+        for (TransactionDto dto : transactionDtos) {
+            if (dto.getDirection() == Direction.DEBIT) {
+                AccountBalance bal = balanceMap.get(dto.getAccountId());
+                if (bal.getBalance().compareTo(dto.getAmount()) < 0) {
+                    throw new InsufficientBalance("Insufficient balance for account: " + dto.getAccountId());
+                }
+            }
+        }
+
+        // 更新所有余额
+        for (TransactionDto dto : transactionDtos) {
+            AccountBalance bal = balanceMap.get(dto.getAccountId());
+            BigDecimal newBal = dto.getDirection() == Direction.CREDIT
+                    ? bal.getBalance().add(dto.getAmount())
+                    : bal.getBalance().subtract(dto.getAmount());
+            bal.setBalance(newBal);
+        }
+
+        // 创建凭证
         String voucherNo = generateVoucherNo();
         Transaction voucher = Transaction.builder()
                 .voucherNo(voucherNo)
@@ -252,109 +268,80 @@ public class TransactionServiceImpl implements TransactionService {
                 .build();
         transactionRepository.save(voucher);
 
-        Map<String, BigDecimal> rbCache = new HashMap<>();
+        // 创建分录（含 running_balance）
         List<JournalEntry> entries = new ArrayList<>();
         for (TransactionDto dto : transactionDtos) {
-            entries.add(buildEntry(voucher.getId(), dto, rbCache));
+            BigDecimal newBal = balanceMap.get(dto.getAccountId()).getBalance();
+            entries.add(entry(voucher.getId(), dto.getAccountId(),
+                    dto.getDirection() != null ? dto.getDirection() : Direction.DEBIT,
+                    dto.getAmount(), dto.getDescription(), newBal));
         }
         journalEntryRepository.saveAll(entries);
 
         validateBalance(voucher.getId());
 
         log.info("凭证 {} 内部转账完成 | reference={} | 分录数={}", voucherNo, transactionReference, entries.size());
-
-        return Response.builder()
-                .responseCode(ok)
-                .message("Transaction completed successfully").build();
+        return Response.builder().responseCode(ok).message("Transaction completed successfully").build();
     }
 
-    // ==================== 私有方法 ====================
+    // ==================== 私有辅助方法 ====================
 
-    /** 余额检查 — 优先 running_balance，旧数据无 running_balance 时回退 SUM */
-    private BigDecimal getBalanceForCheck(String accountId) {
-        BigDecimal rb = journalEntryRepository.findTopByAccountIdOrderByIdDesc(accountId)
+    /** FOR UPDATE 锁住余额行，不存在则创建并初始化为 0 */
+    private AccountBalance resolveBalanceForUpdate(String accountId) {
+        Optional<AccountBalance> existing = accountBalanceRepository.findByAccountIdForUpdate(accountId);
+        if (existing.isPresent()) {
+            return existing.get();
+        }
+        // 新账户: 查分录历史余额做初始化
+        BigDecimal initBal = journalEntryRepository.findTopByAccountIdOrderByIdDesc(accountId)
                 .map(JournalEntry::getRunningBalance)
                 .orElse(null);
-        if (rb != null) {
-            return rb;
+        if (initBal == null) {
+            initBal = journalEntryRepository.getAccountBalance(accountId);
+            if (initBal == null) initBal = BigDecimal.ZERO;
         }
-        BigDecimal sum = journalEntryRepository.getAccountBalance(accountId);
-        return sum != null ? sum : BigDecimal.ZERO;
+        AccountBalance row = AccountBalance.builder()
+                .accountId(accountId).balance(initBal).build();
+        accountBalanceRepository.saveAndFlush(row);
+        return accountBalanceRepository.findByAccountIdForUpdate(accountId).orElseThrow();
     }
 
-    /**
-     * 计算 running_balance — 带本地缓存，同批次同账户多次写入时复用。
-     * <p>
-     * 1. 先查缓存（同事务内已写入的同账户分录）
-     * 2. 缓存无 → 读 DB: findTopByAccountIdOrderByIdDesc → runningBalance
-     * 3. DB 无 runningBalance（旧数据）→ 回退 SUM
-     * 4. 计算新余额: CREDIT 加, DEBIT 减
-     * 5. 更新缓存
-     */
-    private BigDecimal nextRunningBalance(String accountId, Direction dir, BigDecimal amount,
-                                          Map<String, BigDecimal> cache) {
-        BigDecimal lastBalance = cache.get(accountId);
-        if (lastBalance == null) {
-            lastBalance = journalEntryRepository.findTopByAccountIdOrderByIdDesc(accountId)
-                    .map(JournalEntry::getRunningBalance)
-                    .orElse(null);
-            if (lastBalance == null) {
-                // 旧数据无 running_balance → 回退 SUM
-                lastBalance = journalEntryRepository.getAccountBalance(accountId);
-                if (lastBalance == null) {
-                    lastBalance = BigDecimal.ZERO;
-                }
-            }
-        }
-
-        BigDecimal newBalance;
-        if (dir == Direction.CREDIT) {
-            newBalance = lastBalance.add(amount);
-        } else {
-            newBalance = lastBalance.subtract(amount);
-        }
-
-        cache.put(accountId, newBalance);
-        return newBalance;
+    private String resolveReferenceId(TransactionDto dto) {
+        String ref = dto.getReferenceId();
+        return (ref != null && !ref.isEmpty()) ? ref : UUID.randomUUID().toString();
     }
 
-    private List<JournalEntry> buildEntriesForSingleTx(Long voucherId, TransactionDto dto,
-                                                        Map<String, BigDecimal> rbCache) {
-        String cashAccount = "9999999999999";
-        List<JournalEntry> entries = new ArrayList<>();
-
-        if (TransactionType.DEPOSIT.toString().equals(dto.getTransactionType())) {
-            entries.add(buildEntry(voucherId, dto.getAccountId(), Direction.CREDIT,
-                    dto.getAmount(), dto.getDescription(), rbCache));
-            entries.add(buildEntry(voucherId, cashAccount, Direction.DEBIT, dto.getAmount(),
-                    "银行现金入库", rbCache));
-        } else if (TransactionType.WITHDRAWAL.toString().equals(dto.getTransactionType())) {
-            entries.add(buildEntry(voucherId, dto.getAccountId(), Direction.DEBIT,
-                    dto.getAmount(), dto.getDescription(), rbCache));
-            entries.add(buildEntry(voucherId, cashAccount, Direction.CREDIT, dto.getAmount(),
-                    "银行现金出库", rbCache));
-        }
-        return entries;
+    private Optional<Transaction> checkIdempotent(String referenceId) {
+        return transactionRepository.findByReferenceId(referenceId);
     }
 
-    /** 用 DTO 构建分录 */
-    private JournalEntry buildEntry(Long voucherId, TransactionDto dto, Map<String, BigDecimal> rbCache) {
-        Direction dir = dto.getDirection() != null ? dto.getDirection() : Direction.DEBIT;
-        return buildEntry(voucherId, dto.getAccountId(), dir, dto.getAmount(), dto.getDescription(), rbCache);
+    private Response idempotentResponse() {
+        return Response.builder().responseCode(ok)
+                .message("Transaction completed successfully (idempotent)").build();
     }
 
-    /** 构建单条分录，含 running_balance */
-    private JournalEntry buildEntry(Long voucherId, String accountId, Direction dir, BigDecimal amount,
-                                     String desc, Map<String, BigDecimal> rbCache) {
-        BigDecimal runningBalance = nextRunningBalance(accountId, dir, amount, rbCache);
+    private JournalEntry entry(Long txId, String accountId, Direction dir, BigDecimal amount,
+                                String desc, BigDecimal runningBalance) {
         return JournalEntry.builder()
-                .transactionId(voucherId)
-                .accountId(accountId)
-                .direction(dir)
-                .amount(amount)
-                .runningBalance(runningBalance)
-                .description(desc)
-                .build();
+                .transactionId(txId).accountId(accountId).direction(dir)
+                .amount(amount).description(desc).runningBalance(runningBalance).build();
+    }
+
+    private TransactionRequest toTransactionRequest(JournalEntry entry) {
+        Transaction voucher = transactionRepository.findById(entry.getTransactionId()).orElse(null);
+        TransactionRequest req = new TransactionRequest();
+        req.setAccountId(entry.getAccountId());
+        req.setAmount(entry.getAmount());
+        req.setDirection(entry.getDirection().toString());
+        req.setComments(entry.getDescription());
+        if (voucher != null) {
+            req.setVoucherNo(voucher.getVoucherNo());
+            req.setReferenceId(voucher.getReferenceId());
+            req.setTransactionType(voucher.getTransactionType().toString());
+            req.setTransactionStatus(voucher.getStatus().toString());
+            req.setLocalDateTime(voucher.getCreatedAt());
+        }
+        return req;
     }
 
     private String generateVoucherNo() {
@@ -365,19 +352,13 @@ public class TransactionServiceImpl implements TransactionService {
 
     private void validateBalance(Long transactionId) {
         List<JournalEntry> entries = journalEntryRepository.findByTransactionId(transactionId);
-        BigDecimal debitSum = entries.stream()
-                .filter(e -> e.getDirection() == Direction.DEBIT)
-                .map(JournalEntry::getAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal creditSum = entries.stream()
-                .filter(e -> e.getDirection() == Direction.CREDIT)
-                .map(JournalEntry::getAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
+        BigDecimal debitSum = entries.stream().filter(e -> e.getDirection() == Direction.DEBIT)
+                .map(JournalEntry::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal creditSum = entries.stream().filter(e -> e.getDirection() == Direction.CREDIT)
+                .map(JournalEntry::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
         if (debitSum.compareTo(creditSum) != 0) {
             log.error("借贷不平衡! 凭证ID={}, DEBIT={}, CREDIT={}", transactionId, debitSum, creditSum);
             throw new IllegalStateException("借贷不平衡: DEBIT=" + debitSum + ", CREDIT=" + creditSum);
         }
-        log.debug("凭证 {} 借贷平衡: DEBIT={}, CREDIT={}", transactionId, debitSum, creditSum);
     }
 }

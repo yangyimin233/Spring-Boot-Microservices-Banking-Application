@@ -23,4 +23,14 @@ public interface JournalEntryRepository extends JpaRepository<JournalEntry, Long
 
     /** 查某个账户最新一条分录（用于 O(1) 取 running_balance 计算新余额） */
     Optional<JournalEntry> findTopByAccountIdOrderByIdDesc(String accountId);
+
+    /** 获取所有有分录的账户 ID（用于对账） */
+    @Query("SELECT DISTINCT j.accountId FROM JournalEntry j")
+    List<String> findAllAccountIds();
+
+    /** 全局试算平衡: SUM(ALL DEBIT) 应该等于 SUM(ALL CREDIT) */
+    @Query("SELECT COALESCE(SUM(CASE WHEN j.direction = 'DEBIT' THEN j.amount ELSE 0 END), 0) - " +
+           "COALESCE(SUM(CASE WHEN j.direction = 'CREDIT' THEN j.amount ELSE 0 END), 0) " +
+           "FROM JournalEntry j")
+    BigDecimal getGlobalTrialBalance();
 }
