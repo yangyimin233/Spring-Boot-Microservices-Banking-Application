@@ -15,6 +15,7 @@ import org.training.transactions.exception.GlobalErrorCode;
 import org.training.transactions.exception.InsufficientBalance;
 import org.training.transactions.exception.ResourceNotFound;
 import org.training.transactions.external.AccountService;
+import org.training.transactions.external.SequenceService;
 import org.training.transactions.model.Direction;
 import org.training.transactions.model.TransactionStatus;
 import org.training.transactions.model.TransactionType;
@@ -62,6 +63,7 @@ public class TransactionServiceImpl implements TransactionService {
     private final JournalEntryRepository journalEntryRepository;
     private final AccountBalanceRepository accountBalanceRepository;
     private final AccountService accountService;
+    private final SequenceService sequenceService;
     private final DistributedLockService lockService;
     private final BalanceSyncProducer syncProducer;
 
@@ -308,7 +310,17 @@ public class TransactionServiceImpl implements TransactionService {
 
     private String resolveReferenceId(TransactionDto dto) {
         String ref = dto.getReferenceId();
-        return (ref != null && !ref.isEmpty()) ? ref : UUID.randomUUID().toString();
+        if (ref != null && !ref.isEmpty()) {
+            return ref;
+        }
+        try {
+            Map<String, Object> seq = sequenceService.generateTransactionReference();
+            long seqNum = ((Number) seq.get("accountNumber")).longValue();
+            return "TX" + LocalDate.now().format(VOUCHER_FMT) + String.format("%08d", seqNum);
+        } catch (Exception e) {
+            log.warn("Sequence-Generator 不可用，降级为 UUID", e);
+            return UUID.randomUUID().toString();
+        }
     }
 
     private Optional<Transaction> checkIdempotent(String referenceId) {

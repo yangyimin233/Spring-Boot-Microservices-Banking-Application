@@ -23,4 +23,10 @@ public class SequenceController {
     public Sequence generateAccountNumber() {
         return sequenceService.create();
     }
+
+    /** 生成全局流水号（幂等键） */
+    @PostMapping("/transaction")
+    public Sequence generateTransactionReference() {
+        return sequenceService.createTransactionReference();
+    }
 }
