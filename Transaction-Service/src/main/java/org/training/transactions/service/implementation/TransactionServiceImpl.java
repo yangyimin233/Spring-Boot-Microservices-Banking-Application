@@ -19,13 +19,18 @@ import org.training.transactions.external.SequenceService;
 import org.training.transactions.model.Direction;
 import org.training.transactions.model.TransactionStatus;
 import org.training.transactions.model.TransactionType;
+import org.training.transactions.model.dto.FundTransferRequest;
 import org.training.transactions.model.dto.TransactionDto;
 import org.training.transactions.model.entity.AccountBalance;
+import org.training.transactions.model.entity.FundTransfer;
 import org.training.transactions.model.entity.JournalEntry;
 import org.training.transactions.model.entity.Transaction;
+import org.training.transactions.model.response.FundTransferResponse;
 import org.training.transactions.model.response.Response;
 import org.training.transactions.model.response.TransactionRequest;
+import org.training.transactions.model.TransferType;
 import org.training.transactions.repository.AccountBalanceRepository;
+import org.training.transactions.repository.FundTransferRepository;
 import org.training.transactions.repository.JournalEntryRepository;
 import org.training.transactions.repository.TransactionRepository;
 import org.training.transactions.service.TransactionService;
@@ -62,6 +67,7 @@ public class TransactionServiceImpl implements TransactionService {
     private final TransactionRepository transactionRepository;
     private final JournalEntryRepository journalEntryRepository;
     private final AccountBalanceRepository accountBalanceRepository;
+    private final FundTransferRepository fundTransferRepository;
     private final AccountService accountService;
     private final SequenceService sequenceService;
     private final DistributedLockService lockService;
@@ -126,6 +132,65 @@ public class TransactionServiceImpl implements TransactionService {
 
         accountIds.forEach(syncProducer::sendBalanceSync);
         return resp;
+    }
+
+    /**
+     * 转账 — 合并了原 Fund-Transfer 服务逻辑。
+     * <p>
+     * 校验 from/to 账户 → 构建分录 DTO → 调 internalTransaction（双层锁+记账）→ 保存转账日志。
+     * 全部在同一微服务内完成，不再跨 Feign 调用。
+     */
+    public FundTransferResponse fundTransfer(FundTransferRequest request) {
+        // 校验 fromAccount
+        var fromResp = accountService.readByAccountNumber(request.getFromAccount());
+        if (Objects.isNull(fromResp.getBody())) {
+            throw new ResourceNotFound("From account not found", GlobalErrorCode.NOT_FOUND);
+        }
+        if (!"ACTIVE".equals(fromResp.getBody().getAccountStatus())) {
+            throw new AccountStatusException("From account is not active");
+        }
+
+        // 校验 toAccount
+        var toResp = accountService.readByAccountNumber(request.getToAccount());
+        if (Objects.isNull(toResp.getBody())) {
+            throw new ResourceNotFound("To account not found", GlobalErrorCode.NOT_FOUND);
+        }
+
+        // 构建双分录
+        String referenceId = resolveReferenceId(null);
+        List<TransactionDto> entries = List.of(
+                TransactionDto.builder()
+                        .accountId(request.getFromAccount())
+                        .direction(Direction.DEBIT)
+                        .amount(request.getAmount())
+                        .description("转账至 " + request.getToAccount())
+                        .build(),
+                TransactionDto.builder()
+                        .accountId(request.getToAccount())
+                        .direction(Direction.CREDIT)
+                        .amount(request.getAmount())
+                        .description("来自 " + request.getFromAccount() + " 的转账")
+                        .build());
+
+        // 记复式账（双层锁 + FOR UPDATE + 分录 + 余额更新，同事务原子提交）
+        internalTransaction(entries, referenceId);
+
+        // 保存转账日志
+        fundTransferRepository.save(FundTransfer.builder()
+                .transactionReference(referenceId)
+                .fromAccount(request.getFromAccount())
+                .toAccount(request.getToAccount())
+                .amount(request.getAmount())
+                .status(TransactionStatus.SUCCESS)
+                .transferType(TransferType.INTERNAL)
+                .build());
+
+        log.info("转账完成: {} → {} amount={} reference={}",
+                request.getFromAccount(), request.getToAccount(), request.getAmount(), referenceId);
+
+        return FundTransferResponse.builder()
+                .transactionId(referenceId)
+                .message("Fund transfer successful").build();
     }
 
     @Override
@@ -309,9 +374,9 @@ public class TransactionServiceImpl implements TransactionService {
     }
 
     private String resolveReferenceId(TransactionDto dto) {
-        String ref = dto.getReferenceId();
-        if (ref != null && !ref.isEmpty()) {
-            return ref;
+        if (dto != null) {
+            String ref = dto.getReferenceId();
+            if (ref != null && !ref.isEmpty()) return ref;
         }
         try {
             Map<String, Object> seq = sequenceService.generateTransactionReference();

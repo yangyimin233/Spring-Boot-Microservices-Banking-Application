@@ -1,6 +1,8 @@
 package org.training.transactions.service;
 
+import org.training.transactions.model.dto.FundTransferRequest;
 import org.training.transactions.model.dto.TransactionDto;
+import org.training.transactions.model.response.FundTransferResponse;
 import org.training.transactions.model.response.Response;
 import org.training.transactions.model.response.TransactionRequest;
 
@@ -18,6 +20,12 @@ public interface TransactionService {
      * 内部转账 — 多笔分录组成一个凭证，借贷自动平衡
      */
     Response internalTransaction(List<TransactionDto> transactionDtos, String transactionReference);
+
+    /**
+     * 转账 — 合并了原 Fund-Transfer 服务。
+     * 校验 from/to 账户 → 双层锁记账 → 保存转账日志。
+     */
+    FundTransferResponse fundTransfer(FundTransferRequest request);
 
     /**
      * 查询某账户的流水

@@ -42,9 +42,11 @@ spring:
           predicates:
             - Path=/transactions/**
         - id: fund-transfer-service
-          uri: lb://fund-transfer-service
+          uri: lb://transaction-service
           predicates:
             - Path=/fund-transfers/**
+          filters:
+            - RewritePath=/fund-transfers, /transactions/fund-transfers
 
     sentinel:
       eager: true

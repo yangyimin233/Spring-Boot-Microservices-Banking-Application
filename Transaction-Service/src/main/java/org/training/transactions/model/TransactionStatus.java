@@ -2,5 +2,5 @@ package org.training.transactions.model;
 
 public enum TransactionStatus {
 
-    COMPLETED, PENDING
+    PENDING, PROCESSING, COMPLETED, SUCCESS, FAILED
 }

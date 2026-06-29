@@ -11,9 +11,11 @@ import org.training.transactions.exception.GlobalErrorCode;
 import org.training.transactions.exception.ResourceNotFound;
 import org.training.transactions.external.AccountService;
 import org.training.transactions.external.UserService;
+import org.training.transactions.model.dto.FundTransferRequest;
 import org.training.transactions.model.dto.TransactionDto;
 import org.training.transactions.model.dto.UserDto;
 import org.training.transactions.model.external.Account;
+import org.training.transactions.model.response.FundTransferResponse;
 import org.training.transactions.model.response.Response;
 import org.training.transactions.model.response.TransactionRequest;
 import org.training.transactions.repository.JournalEntryRepository;
@@ -47,6 +49,13 @@ public class TransactionController {
     public ResponseEntity<Response> makeInternalTransaction(@RequestBody List<TransactionDto> transactionDtos,
                                                              @RequestParam String transactionReference) {
         return new ResponseEntity<>(transactionService.internalTransaction(transactionDtos, transactionReference), HttpStatus.CREATED);
+    }
+
+    /** 转账（替代原 Fund-Transfer 服务，合并入 Transaction-Service） */
+    @PostMapping("/fund-transfers")
+    public ResponseEntity<FundTransferResponse> fundTransfer(@RequestBody FundTransferRequest request) {
+        verifyAccountOwnership(request.getFromAccount());
+        return ResponseEntity.ok(transactionService.fundTransfer(request));
     }
 
     @GetMapping
