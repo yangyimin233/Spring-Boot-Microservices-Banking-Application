@@ -1,5 +1,8 @@
 package org.training.transactions.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -31,6 +34,7 @@ import java.util.Objects;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/transactions")
+@Tag(name = "交易记账", description = "存款/取款/转账/流水查询")
 public class TransactionController {
 
     private final TransactionService transactionService;
@@ -38,6 +42,7 @@ public class TransactionController {
     private final UserService userService;
     private final JournalEntryRepository journalEntryRepository;
 
+    @Operation(summary = "存款/取款", description = "单笔记账接口。存款无锁，取款走 Redisson + FOR UPDATE 双层锁。支持幂等键 referenceId。")
     @PostMapping
     public ResponseEntity<Response> addTransactions(@RequestBody TransactionDto transactionDto) {
         // Horizontal authorization: verify the requester owns the account
@@ -45,13 +50,15 @@ public class TransactionController {
         return new ResponseEntity<>(transactionService.addTransaction(transactionDto), HttpStatus.CREATED);
     }
 
+    @Operation(summary = "内部记账", description = "服务间调用接口。调用方需自行构建借贷分录列表，传入 transactionReference 做幂等。")
     @PostMapping("/internal")
-    public ResponseEntity<Response> makeInternalTransaction(@RequestBody List<TransactionDto> transactionDtos,
-                                                             @RequestParam String transactionReference) {
+    public ResponseEntity<Response> makeInternalTransaction(
+            @RequestBody List<TransactionDto> transactionDtos,
+            @Parameter(description = "幂等键") @RequestParam String transactionReference) {
         return new ResponseEntity<>(transactionService.internalTransaction(transactionDtos, transactionReference), HttpStatus.CREATED);
     }
 
-    /** 转账（替代原 Fund-Transfer 服务，合并入 Transaction-Service） */
+    @Operation(summary = "转账", description = "校验 from/to 账户 → 双层锁记账 → 保存转账日志。需水平鉴权。")
     @PostMapping("/fund-transfers")
     public ResponseEntity<FundTransferResponse> fundTransfer(@RequestBody FundTransferRequest request) {
         verifyAccountOwnership(request.getFromAccount());

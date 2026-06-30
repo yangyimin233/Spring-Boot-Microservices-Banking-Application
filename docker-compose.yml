@@ -1,0 +1,115 @@
+# ============================================
+# Banking Microservices — 微服务容器编排
+# ============================================
+# 使用方式:
+#   1. 先构建所有 JAR:  mvn clean package -DskipTests (每个模块)
+#   2. 启动所有服务:    docker compose up -d
+#   3. 查看日志:         docker compose logs -f
+#   4. 停止:             docker compose down
+# ============================================
+
+services:
+  # ====== 基础设施 ======
+  mysql:
+    image: mysql:8.0
+    container_name: bank-mysql
+    ports:
+      - "3307:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+    volumes:
+      - ./D:/bank-env/init.sql:/docker-entrypoint-initdb.d/init.sql
+
+  redis:
+    image: redis:7-alpine
+    container_name: bank-redis
+    ports:
+      - "6379:6379"
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: bank-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: bank
+      RABBITMQ_DEFAULT_PASS: bank123
+
+  nacos:
+    image: nacos/nacos-server:v2.2.3
+    container_name: bank-nacos
+    ports:
+      - "8848:8848"
+      - "9848:9848"
+    environment:
+      MODE: standalone
+
+  # ====== 微服务 ======
+  sequence-generator:
+    build: ./Sequence-Generator
+    container_name: seq-service
+    ports:
+      - "8083:8083"
+    depends_on:
+      - mysql
+      - nacos
+    restart: on-failure
+
+  user-service:
+    build: ./User-Service
+    container_name: user-service
+    ports:
+      - "8082:8082"
+    depends_on:
+      - mysql
+      - nacos
+    restart: on-failure
+
+  account-service:
+    build: ./Account-Service
+    container_name: account-service
+    ports:
+      - "8081:8081"
+    depends_on:
+      - mysql
+      - nacos
+      - user-service
+      - sequence-generator
+    restart: on-failure
+
+  transaction-service:
+    build: ./Transaction-Service
+    container_name: tx-service
+    ports:
+      - "8084:8084"
+    depends_on:
+      - mysql
+      - nacos
+      - redis
+      - rabbitmq
+      - account-service
+    restart: on-failure
+
+  fund-transfer:
+    build: ./Fund-Transfer
+    container_name: ft-service
+    ports:
+      - "8085:8085"
+    depends_on:
+      - mysql
+      - nacos
+      - account-service
+    restart: on-failure
+
+  api-gateway:
+    build: ./API-Gateway
+    container_name: gateway
+    ports:
+      - "8080:8080"
+    depends_on:
+      - nacos
+      - user-service
+      - account-service
+      - transaction-service
+    restart: on-failure

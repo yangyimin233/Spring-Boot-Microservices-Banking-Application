@@ -1,0 +1,11 @@
+**/target/classes/
+**/target/generated-sources/
+**/target/maven-status/
+**/target/test-classes/
+**/src/
+**/logs/
+**/.idea/
+**/*.iml
+**/.git/
+**/node_modules/
+*.md
